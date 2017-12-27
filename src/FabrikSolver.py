@@ -9,7 +9,7 @@ class FabrikSolver(object):
         self.resolution = 1e-10
         self.origin = self.cga.point(0.0, 0.0, 0.0)
 
-    def closestPointToPairOfPoinsInLineIntersectingWithSphere(self, reference_point, line, sphere):
+    def closestPointToPairOfPointsInLineIntersectingWithSphere(self, reference_point, line, sphere):
         vector_pair = sphere.meet(line)
         first_point, second_point = self.cga.project(vector_pair)
         first_point_distance = math.sqrt(abs(first_point | reference_point))
@@ -42,12 +42,13 @@ class FabrikSolver(object):
             current_target_position = self.getTarget(target_position, forward)
             point_chain.set(0, forward, current_target_position)
             for index in range(1, len(point_chain)):
-                while(abs(point_chain.get(index, forward) | point_chain.get(index - 1, forward)) < self.resolution):
-                    random_position = self.randomDistortion(point_chain.get(index, forward))
-                    point_chain.set(index, forward, random_position)
-                line = self.cga.line(point_chain.get(index, forward), point_chain.get(index - 1, forward))
-                sphere = self.cga.sphere(point_chain.get(index - 1, forward), joint_chain.get(index - 1, forward).distance)
-                closest_point = self.closestPointToPairOfPoinsInLineIntersectingWithSphere(point_chain.get(index, forward), line, sphere)
+                current_position = point_chain.get(index, forward)
+                previous_position = point_chain.get(index - 1, forward)
+                while(abs(current_position | previous_position) < self.resolution):
+                    current_position = self.randomDistortion(current_position)
+                line = self.cga.line(current_position, previous_position)
+                sphere = self.cga.sphere(previous_position, joint_chain.get(index - 1, forward).distance)
+                closest_point = self.closestPointToPairOfPointsInLineIntersectingWithSphere(current_position, line, sphere)
                 point_chain.set(index, forward, closest_point)
             iteration = iteration + 1
             forward = not forward
