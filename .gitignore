@@ -1,0 +1,9 @@
+*.model
+*.backup
+.DS_Store
+*/__pycache__
+*.pyc
+*.out
+datasets/images
+src/*.png
+*.temp
