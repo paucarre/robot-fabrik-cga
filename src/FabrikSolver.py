@@ -7,6 +7,7 @@ class FabrikSolver(object):
     def __init__(self):
         self.cga = ConformalGeometricAlgebra()
         self.resolution = 1e-10
+        self.origin = self.cga.point(0.0, 0.0, 0.0)
 
     def closestPointToPairOfPoinsInLineIntersectingWithSphere(self, reference_point, line, sphere):
         vector_pair = sphere.meet(line)
@@ -22,10 +23,10 @@ class FabrikSolver(object):
         if(forward):
             return target
         else:
-            return self.cga.point(0.0, 0.0, 0.0)
+            return self.origin
 
     def error(self, target, point_chain):
-        return math.sqrt(abs(target | point_chain.get(0, True))) + math.sqrt(abs(self.cga.point(0.0, 0.0, 0.0) | point_chain.get(0, False)))
+        return math.sqrt(abs(target | point_chain.get(0, True))) + math.sqrt(abs(self.origin | point_chain.get(0, False)))
 
     def randomDistortion(self, point):
         random_direction = self.cga.vector(random.uniform(-10.0, 10.0), random.uniform(-10.0, 10.0), 0.0)
@@ -35,17 +36,13 @@ class FabrikSolver(object):
 
     def solve(self, joint_chain, target_position, max_iterations=30):
         point_chain = PointChain(joint_chain, self.cga)
-        end_effector_position = point_chain.get(0, True)
         iteration = 0
         forward = True
         while self.error(target_position, point_chain) > self.resolution and iteration < max_iterations:
             current_target_position = self.getTarget(target_position, forward)
-            # last point goes to target
             point_chain.set(0, forward, current_target_position)
             for index in range(1, len(point_chain)):
-                # trace line between target and previous
                 while(abs(point_chain.get(index, forward) | point_chain.get(index - 1, forward)) < self.resolution):
-                    # they are in the same point and thus cannot form a linev -> apply distortion to a point
                     random_position = self.randomDistortion(point_chain.get(index, forward))
                     point_chain.set(index, forward, random_position)
                 line = self.cga.line(point_chain.get(index, forward), point_chain.get(index - 1, forward))
