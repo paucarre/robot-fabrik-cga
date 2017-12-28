@@ -7,7 +7,6 @@ class FabrikSolver(object):
     def __init__(self):
         self.cga = ConformalGeometricAlgebra()
         self.resolution = 1e-10
-        self.origin = self.cga.point(0.0, 0.0, 0.0)
 
     def closestPointToPairOfPointsInLineIntersectingWithSphere(self, reference_point, line, sphere):
         vector_pair = sphere.meet(line)
@@ -23,10 +22,10 @@ class FabrikSolver(object):
         if(forward):
             return target
         else:
-            return self.origin
+            return self.cga.e_origin
 
     def error(self, target, point_chain):
-        return math.sqrt(abs(target | point_chain.get(0, True))) + math.sqrt(abs(self.origin | point_chain.get(0, False)))
+        return math.sqrt(abs(target | point_chain.get(0, True))) + math.sqrt(abs(self.cga.e_origin | point_chain.get(0, False)))
 
     def randomDistortion(self, point):
         random_direction = self.cga.vector(random.uniform(-10.0, 10.0), random.uniform(-10.0, 10.0), 0.0)
