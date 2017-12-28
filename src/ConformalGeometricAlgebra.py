@@ -5,7 +5,7 @@ class ConformalGeometricAlgebra(object):
     def __init__(self):
         self.layout, self.blades = Cl(4,1)
         pretty()
-        eps(1e-11)
+        eps(1e-15)
         self.e1, self.e2, self.e3, self.e_hat, self.e = [self.blades['e%i'%k] for k in range(1, 6)]
         self.e_origin = 0.5 ^ (self.e - self.e_hat)
         self.e_inf = self.e_hat + self.e
