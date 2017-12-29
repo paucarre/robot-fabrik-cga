@@ -71,7 +71,7 @@ class FabrikSolver(object):
         else:
             return max_angle_clockwise_position
 
-    def solve(self, joint_chain, target_position, max_iterations=4):
+    def solve(self, joint_chain, target_position, max_iterations=100):
         point_chain = PointChain(joint_chain, self.cga)
         iteration = 0
         forward = True
