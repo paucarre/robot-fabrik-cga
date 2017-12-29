@@ -15,9 +15,9 @@ class FabrikSolver(object):
         first_point_distance = math.sqrt(abs(first_point | reference_point))
         second_point_distance = math.sqrt(abs(second_point | reference_point))
         if(first_point_distance < second_point_distance):
-            return first_point
+            return self.cga.homogeneousPoint(first_point)
         else:
-            return second_point
+            return self.cga.homogeneousPoint(second_point)
 
     def getTarget(self, target, forward):
         if(forward):
