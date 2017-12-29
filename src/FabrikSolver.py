@@ -35,18 +35,11 @@ class FabrikSolver(object):
         return random_position
 
     def resolveAngleConstraints(self, previous_direction, previous_position, current_position, angle, joint):
-        # positions
         max_angle_clockwise_position = self.cga.sandwich(previous_position, self.cga.translation(self.cga.sandwich(joint.distance * previous_direction, self.cga.rotation(self.plane_bivector, angle / 2.0))))
         max_angle_anticlockwise_position = self.cga.sandwich(previous_position,  self.cga.translation(self.cga.sandwich(joint.distance * previous_direction, self.cga.rotation(-self.plane_bivector, angle / 2.0))))
-        zero_angle_position = self.cga.sandwich(previous_position, self.cga.translation(joint.distance * previous_direction))
-        # distances
         max_angle_clockwise_distance = self.cga.distance(current_position, max_angle_clockwise_position)
         max_angle_anticlockwise_distance = self.cga.distance(current_position, max_angle_anticlockwise_position)
-        zero_angle_distance = self.cga.distance(current_position, zero_angle_position)
-        # pick position with minimum distance
-        if(zero_angle_distance <= max_angle_anticlockwise_distance and zero_angle_distance <= max_angle_clockwise_distance):
-            return zero_angle_position
-        elif(max_angle_anticlockwise_distance <= zero_angle_distance and max_angle_anticlockwise_distance <= max_angle_clockwise_distance):
+        if(max_angle_anticlockwise_distance <= max_angle_clockwise_distance):
             return max_angle_anticlockwise_position
         else:
             return max_angle_clockwise_position
