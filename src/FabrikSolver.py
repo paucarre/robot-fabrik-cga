@@ -34,36 +34,16 @@ class FabrikSolver(object):
         random_position = self.cga.sandwich(point, random_translation)
         return random_position
 
-    def normalizeVector(self, vector):
-        norm2 = math.sqrt(abs(vector * ~vector))
-        if norm2 > self.resolution:
-            return vector / norm2
-        else:
-            return vector
-
-    def direction(self, source_position, destination_position):
-        return self.normalizeVector(self.cga.toVector(destination_position) - self.cga.toVector(source_position))
-
-    def angle(self, first_vector, second_vector):
-        cos_angle = float(first_vector | second_vector)
-        if(cos_angle < -1.0):
-            cos_angle = -1.0
-        if(cos_angle > 1.0):
-            cos_angle = 1.0
-        return math.acos(cos_angle)
-
-    def distance(self, origin_point, destination_point):
-        distance = destination_point - origin_point
-        return math.sqrt(abs(distance * ~distance))
-
     def resolveAngleConstraints(self, previous_direction, previous_position, current_position, angle, joint):
+        # positions
         max_angle_clockwise_position = self.cga.sandwich(previous_position, self.cga.translation(self.cga.sandwich(joint.distance * previous_direction, self.cga.rotation(self.plane_bivector, angle / 2.0))))
         max_angle_anticlockwise_position = self.cga.sandwich(previous_position,  self.cga.translation(self.cga.sandwich(joint.distance * previous_direction, self.cga.rotation(-self.plane_bivector, angle / 2.0))))
         zero_angle_position = self.cga.sandwich(previous_position, self.cga.translation(joint.distance * previous_direction))
-
-        max_angle_clockwise_distance = self.distance(current_position, max_angle_clockwise_position)
-        max_angle_anticlockwise_distance = self.distance(current_position, max_angle_anticlockwise_position)
-        zero_angle_distance = self.distance(current_position, zero_angle_position)
+        # distances
+        max_angle_clockwise_distance = self.cga.distance(current_position, max_angle_clockwise_position)
+        max_angle_anticlockwise_distance = self.cga.distance(current_position, max_angle_anticlockwise_position)
+        zero_angle_distance = self.cga.distance(current_position, zero_angle_position)
+        # pick position with minimum distance
         if(zero_angle_distance <= max_angle_anticlockwise_distance and zero_angle_distance <= max_angle_clockwise_distance):
             return zero_angle_position
         elif(max_angle_anticlockwise_distance <= zero_angle_distance and max_angle_anticlockwise_distance <= max_angle_clockwise_distance):
@@ -90,13 +70,12 @@ class FabrikSolver(object):
                 joint = joint_chain.get(index - 1, forward)
                 sphere = self.cga.sphere(previous_position, joint.distance)
                 current_position = self.closestPointToPairOfPointsInLineIntersectingWithSphere(current_position, line, sphere)
-                current_direction = self.direction(previous_position, current_position)
+                current_direction = self.cga.direction(previous_position, current_position)
                 if previous_direction is not None:
-                    angle = self.angle(current_direction, previous_direction)
-                    angle_constraint = joint.angle_constraint
-                    if(angle > angle_constraint / 2.0):
+                    angle = self.cga.angle(current_direction, previous_direction)
+                    if(angle > joint.angle_constraint / 2.0):
                         current_position = self.resolveAngleConstraints(previous_direction, previous_position, current_position, angle, joint)
-                        current_direction = self.direction(previous_position, current_position)
+                        current_direction = self.cga.direction(previous_position, current_position)
                 point_chain.set(index, forward, current_position)
                 previous_direction = current_direction
             iteration = iteration + 1

@@ -1,7 +1,8 @@
 import unittest
 from ConformalGeometricAlgebra import ConformalGeometricAlgebra
-cga = ConformalGeometricAlgebra()
 from clifford import *
+
+cga = ConformalGeometricAlgebra(1e-11)
 
 class TestConformalGeometricAlgebra(unittest.TestCase):
 
@@ -42,3 +43,34 @@ class TestConformalGeometricAlgebra(unittest.TestCase):
       projected_first_point, projected_second_point = cga.project(line.meet(sphere))
       self.assertTrue(math.sqrt(abs(projected_first_point | cga.point(-9, 0, 0))) < 1e-2)
       self.assertTrue(math.sqrt(abs(projected_second_point | cga.point(11, 0, 0))) < 1e-2)
+
+    def test_normalizeVector(self):
+      vector = cga.vector(-4, 1, -8)
+      normalized_vector = cga.normalizeVector(vector)
+      self.assertEqual(normalized_vector * ~normalized_vector, 1.0)
+      projection = vector | normalized_vector
+      self.assertEqual(vector / projection, normalized_vector)
+
+    def test_direction(self):
+      source_position = cga.point(4, 1, -8)
+      destination_position = cga.point(5, -2, -9)
+      direction = cga.direction(source_position, destination_position)
+      self.assertEqual(direction, cga.normalizeVector(cga.vector(1, -3, -1)))
+
+    def test_angle(self):
+      first_vector = cga.vector(1, 1, 0)
+      second_vector = cga.vector(0, 0, 1)
+      angle = cga.angle(first_vector, second_vector)
+      self.assertTrue(abs(angle - (math.pi / 2.0)) < 1e-10)
+
+    def test_distance(self):
+      first_vector = cga.point(math.cos(math.pi/2), math.sin(math.pi/2), 0)
+      second_vector = cga.point(0, 0, 1)
+      distance = cga.distance(first_vector, second_vector)
+      self.assertTrue(abs(distance - math.sqrt(2)) < 1e-10)
+
+    def test_rotation(self):
+      point = cga.point(math.cos(math.pi/2), math.sin(math.pi/2), 0)
+      rotation = cga.rotation(cga.e1 ^ cga.e3, math.pi / 2.0)
+      rotated_point = cga.sandwich(point, rotation)
+      self.assertEqual(rotated_point, cga.point(0, math.sin(math.pi/2), math.cos(math.pi/2)))

@@ -2,10 +2,11 @@ from clifford import *
 import random
 class ConformalGeometricAlgebra(object):
 
-    def __init__(self):
+    def __init__(self, resolution=1e-15):
         self.layout, self.blades = Cl(4,1)
         pretty()
-        eps(1e-15)
+        self.resolution = resolution
+        eps(self.resolution)
         self.e1, self.e2, self.e3, self.e_hat, self.e = [self.blades['e%i'%k] for k in range(1, 6)]
         self.e_origin = 0.5 ^ (self.e - self.e_hat)
         self.e_inf = self.e_hat + self.e
@@ -15,7 +16,7 @@ class ConformalGeometricAlgebra(object):
         return self.homogeneousPoint(vector + (0.5 ^ ( (vector**2) * self.e_inf ) ) + self.e_origin)
 
     def homogeneousPoint(self, point):
-        if(abs(point | self.e_inf) > 1e-7):
+        if(abs(point | self.e_inf) > self.resolution):
             return point * ( -point | self.e_inf ).normalInv()
         else:
             # zero point, non-invertible
@@ -54,6 +55,28 @@ class ConformalGeometricAlgebra(object):
 
     def line(self, first_point, second_point):
         return self.homogeneousPoint(first_point) ^ self.homogeneousPoint(second_point) ^ self.e_inf
+
+    def normalizeVector(self, vector):
+        norm2 = math.sqrt(abs(vector * ~vector))
+        if norm2 > self.resolution:
+            return vector / norm2
+        else:
+            return vector
+
+    def direction(self, source_position, destination_position):
+        return self.normalizeVector(self.toVector(destination_position) - self.toVector(source_position))
+
+    def angle(self, first_vector, second_vector):
+        cos_angle = float(first_vector | second_vector)
+        if(cos_angle < -1.0):
+            cos_angle = -1.0
+        if(cos_angle > 1.0):
+            cos_angle = 1.0
+        return math.acos(cos_angle)
+
+    def distance(self, origin_point, destination_point):
+        distance = destination_point - origin_point
+        return math.sqrt(abs(distance * ~distance))
 
     def sphere(self, center, radius):
         sphere_point_1_translation = self.translation(self.vector(radius, 0.0, 0.0))
