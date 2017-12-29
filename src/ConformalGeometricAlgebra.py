@@ -24,6 +24,9 @@ class ConformalGeometricAlgebra(object):
     def toVector(self, point):
         return ( self.homogeneousPoint(point) ^ self.minkowski_plane ) * self.minkowski_plane
 
+    def rotation(self, bivector, angle):
+        return math.cos(angle / 2.0) + (math.sin(angle / 2.0) ^ bivector)
+
     def translation(self, vector):
         return 1.0 + ( 0.5 ^ (self.e_inf * vector) )
 

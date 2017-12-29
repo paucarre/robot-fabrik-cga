@@ -4,8 +4,8 @@ from FabrikSolver import FabrikSolver
 
 if __name__ == "__main__":
     cga = ConformalGeometricAlgebra()
-    first_joint = Joint(2.0, 20.0)
-    second_joint = Joint(2.0, 100.0)
+    first_joint = Joint(3.14, 20.0)
+    second_joint = Joint(3.14, 100.0)
     joint_chain = JointChain([first_joint, second_joint])
     target_point = cga.point(0.0, 120.0, 0.0)
     fabrik_solver = FabrikSolver()
