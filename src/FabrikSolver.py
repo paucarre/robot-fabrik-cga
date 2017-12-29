@@ -12,9 +12,7 @@ class FabrikSolver(object):
     def closestPointToPairOfPointsInLineIntersectingWithSphere(self, reference_point, line, sphere):
         vector_pair = sphere.meet(line)
         first_point, second_point = self.cga.project(vector_pair)
-        first_point_distance = math.sqrt(abs(first_point | reference_point))
-        second_point_distance = math.sqrt(abs(second_point | reference_point))
-        if(first_point_distance < second_point_distance):
+        if(self.cga.distance(first_point, reference_point) < self.cga.distance(second_point, reference_point)):
             return self.cga.homogeneousPoint(first_point)
         else:
             return self.cga.homogeneousPoint(second_point)
