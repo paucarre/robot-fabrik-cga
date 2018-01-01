@@ -42,14 +42,29 @@ class FabrikSolver(object):
         else:
             return max_angle_clockwise_position
 
+    def toRotors(self, point_chain):
+        previous_direction = self.cga.vector(1.0, 0.0, 0.0)
+        previous_position = None
+        rotors = []
+        for current_position in point_chain.positions:
+            if previous_position is None:
+                previous_position = current_position
+            else:
+                current_direction = self.cga.direction(previous_position, current_position)
+                rotor = self.cga.toRotor(previous_direction, current_direction)
+                rotors.insert(len(rotors), rotor)
+                previous_direction = current_direction
+                previous_position = current_position
+        return rotors
+
     def solve(self, joint_chain, target_position, max_iterations=100):
-        point_chain = PointChain(joint_chain, self.cga)
+        point_chain = PointChain.fromJoints(joint_chain, self.cga)
         iteration = 0
         forward = True
         while self.error(target_position, point_chain) > self.resolution and iteration < max_iterations:
             previous_direction = None
             if not forward:
-                previous_direction = self.cga.vector(1.0, 0.0, 0.0)
+                previous_direction  = self.cga.vector(1.0, 0.0, 0.0)
             current_target_position = self.getTarget(target_position, forward)
             point_chain.set(0, forward, current_target_position)
             for index in range(1, len(point_chain)):
@@ -71,4 +86,4 @@ class FabrikSolver(object):
                 previous_direction = current_direction
             iteration = iteration + 1
             forward = not forward
-        return [self.cga.toVector(position) for position in point_chain.positions ]
+        return point_chain

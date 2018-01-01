@@ -1,18 +1,31 @@
 class PointChain(object):
 
-    def __init__(self, joint_chain, cga):
-        self.cga = cga
-        initial_point = self.cga.point(0, 0, 0)
-        self.positions = [initial_point]
-        transformations = [self.cga.translation(self.cga.vector(0.0, 0.0, 0.0))]
+    def fromJoints(joint_chain, cga):
+        cga = cga
+        initial_point = cga.point(0, 0, 0)
+        positions = [initial_point]
+        transformations = [cga.translation(cga.vector(0.0, 0.0, 0.0))]
         for joint in joint_chain.joints:
-            direction = self.cga.vector(joint.distance, 0.0, 0.0)
-            transformations.insert(len(transformations), self.cga.translation(direction))
-            self.positions.insert(len(self.positions), self.cga.sandwiches(initial_point, transformations))
+            direction = cga.vector(joint.distance, 0.0, 0.0)
+            transformations.insert(len(transformations), cga.translation(direction))
+            positions.insert(len(positions), cga.sandwiches(initial_point, transformations))
+        return PointChain(positions, cga)
+
+    def __init__(self, point_chain, cga):
+        self.cga = cga
+        self.positions = point_chain
 
     def __len__(self):
         return len(self.positions)
 
+    def __repr__(self):
+        return f"{self}"
+
+    def __str__(self):
+        return f"Points (as vectors): {[self.cga.toVector(point) for point in self.positions]}"
+
+    def last(self):
+        return self.positions[len(self.positions) - 1]
 
     def get(self, index, forward):
         if(forward):

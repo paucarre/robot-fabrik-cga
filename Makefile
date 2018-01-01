@@ -4,4 +4,5 @@ help:
 
 test:
 	cd src && \
-	 python  -m unittest discover -s .  -p 'Test*.py'
+	 coverage run  -m unittest discover -s .  -p 'Test*.py' && \
+	 coverage report
