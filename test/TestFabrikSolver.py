@@ -3,7 +3,8 @@ from fabrik.ConformalGeometricAlgebra import ConformalGeometricAlgebra
 from clifford import *
 from fabrik.FabrikSolver import FabrikSolver
 from fabrik.PointChain import PointChain
-from fabrik.JointChain import JointChain, Joint
+from fabrik.JointChain import JointChain
+from fabrik.Joint import Joint
 import math
 fabrik_solver = FabrikSolver()
 cga = ConformalGeometricAlgebra(1e-11)
