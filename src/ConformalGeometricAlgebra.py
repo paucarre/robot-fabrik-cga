@@ -12,6 +12,13 @@ class ConformalGeometricAlgebra(object):
         self.e_inf = self.e_hat + self.e
         self.minkowski_plane = self.e_inf ^ self.e_origin
 
+    def toRotor(self, first_vector, second_vector):
+        second_vector  = self.normalizeVector(second_vector)
+        first_vector   = self.normalizeVector(first_vector)
+        rotation_plane = self.normalizeVector(second_vector ^ first_vector)
+        angle = self.angle(first_vector, second_vector);
+        return self.rotation(rotation_plane, angle)
+
     def toPoint(self, vector):
         return self.homogeneousPoint(vector + (0.5 ^ ( (vector**2) * self.e_inf ) ) + self.e_origin)
 
@@ -67,12 +74,17 @@ class ConformalGeometricAlgebra(object):
         return self.normalizeVector(self.toVector(destination_position) - self.toVector(source_position))
 
     def angle(self, first_vector, second_vector):
-        cos_angle = float(first_vector | second_vector)
+        first_vector_normalized = self.normalizeVector(first_vector)
+        second_vector_normalized = self.normalizeVector(second_vector)
+        cos_angle = float(first_vector_normalized | second_vector_normalized)
         if(cos_angle < -1.0):
             cos_angle = -1.0
         if(cos_angle > 1.0):
             cos_angle = 1.0
-        return math.acos(cos_angle)
+        angle = math.acos(cos_angle)
+        #if(angle > math.pi):
+        #    angle = (2.0 * math.pi) - angle
+        return angle;
 
     def distance(self, origin_point, destination_point):
         distance = destination_point - origin_point

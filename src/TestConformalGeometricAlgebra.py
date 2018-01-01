@@ -2,9 +2,18 @@ import unittest
 from ConformalGeometricAlgebra import ConformalGeometricAlgebra
 from clifford import *
 
-cga = ConformalGeometricAlgebra(1e-11)
+cga = ConformalGeometricAlgebra(1e-20)
 
 class TestConformalGeometricAlgebra(unittest.TestCase):
+
+    def test_toRotor_point(self):
+      source_point = cga.point(1.0, -10.0, 4.0)
+      rotation_plane =  cga.e2 ^ cga.e3
+      expected_rotor = cga.rotation(rotation_plane, math.pi)
+      expected_destination_point = cga.sandwich(source_point, expected_rotor)
+      computed_rotor = cga.toRotor(cga.toVector(source_point), cga.toVector(expected_destination_point))
+      computed_destination_point = cga.sandwich(source_point, computed_rotor)
+      self.assertEqual(cga.homogeneousPoint(computed_destination_point), cga.homogeneousPoint(expected_destination_point))
 
     def test_homogeneousPoint(self):
       point = cga.point(1, -2, 3)
