@@ -32,6 +32,9 @@ class JointChain(object):
         joints_as_stirng = [f"{joint}" for joint in self.joints]
         return f"Joints: {joints_as_stirng}"
 
+    def last(self):
+        return self.joints[len(self.joints) - 1]
+
     def get(self, index, forward):
         if(forward):
             return self.joints[len(self.joints) - 1 - index]

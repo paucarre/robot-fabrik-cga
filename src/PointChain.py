@@ -24,6 +24,9 @@ class PointChain(object):
     def __str__(self):
         return f"Points (as vectors): {[self.cga.toVector(point) for point in self.positions]}"
 
+    def last(self):
+        return self.positions[len(self.positions) - 1]
+
     def get(self, index, forward):
         if(forward):
             return self.positions[len(self.positions) - 1 - index]
