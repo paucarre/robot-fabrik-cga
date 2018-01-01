@@ -13,9 +13,11 @@ class ConformalGeometricAlgebra(object):
         self.minkowski_plane = self.e_inf ^ self.e_origin
 
     def angleFromRotor(self, rotor):
-        sin_half_angle = float(rotor | (self.e1 ^ self.e2)) #TODO: this is a hack, do it properly
-        half_angle = math.asin(sin_half_angle)
+        cos_half_angle = rotor.lc(1)
+        half_angle = math.acos(cos_half_angle)
         angle = half_angle * 2.0
+        if(float((rotor - cos_half_angle) | rotor.lc((self.e1^self.e2)+(self.e1^self.e3)+(self.e2^self.e3))) < 0.0):
+            angle = -angle
         return angle
 
     def toRotor(self, first_vector, second_vector):
