@@ -1,5 +1,5 @@
-from ConformalGeometricAlgebra import ConformalGeometricAlgebra
-from PointChain import PointChain
+from fabrik.ConformalGeometricAlgebra import ConformalGeometricAlgebra
+from fabrik.PointChain import PointChain
 import math
 
 class FabrikSolver(object):

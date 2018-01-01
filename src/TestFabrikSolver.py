@@ -1,9 +1,9 @@
 import unittest
-from ConformalGeometricAlgebra import ConformalGeometricAlgebra
+from fabrik.ConformalGeometricAlgebra import ConformalGeometricAlgebra
 from clifford import *
-from FabrikSolver import FabrikSolver
-from PointChain import PointChain
-from JointChain import JointChain, Joint
+from fabrik.FabrikSolver import FabrikSolver
+from fabrik.PointChain import PointChain
+from fabrik.JointChain import JointChain, Joint
 import math
 fabrik_solver = FabrikSolver()
 cga = ConformalGeometricAlgebra(1e-11)

@@ -1,5 +1,5 @@
 import unittest
-from ConformalGeometricAlgebra import ConformalGeometricAlgebra
+from fabrik.ConformalGeometricAlgebra import ConformalGeometricAlgebra
 from clifford import *
 
 cga = ConformalGeometricAlgebra(1e-20)
