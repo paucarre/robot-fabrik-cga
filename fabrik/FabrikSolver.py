@@ -28,13 +28,13 @@ class FabrikSolver(object):
 
     def randomDistortion(self, point):
         random_direction = self.cga.vector(random.uniform(-10.0, 10.0), random.uniform(-10.0, 10.0), 0.0)
-        random_translation = self.cga.translation(random_direction)
+        random_translation = self.cga.translator(random_direction)
         random_position = self.cga.sandwich(point, random_translation)
         return random_position
 
     def resolveAngleConstraints(self, previous_direction, previous_position, current_position, angle, joint):
-        max_angle_clockwise_position = self.cga.sandwich(previous_position, self.cga.translation(self.cga.sandwich(joint.distance * previous_direction, self.cga.rotation(self.plane_bivector, angle / 2.0))))
-        max_angle_anticlockwise_position = self.cga.sandwich(previous_position,  self.cga.translation(self.cga.sandwich(joint.distance * previous_direction, self.cga.rotation(-self.plane_bivector, angle / 2.0))))
+        max_angle_clockwise_position = self.cga.sandwich(previous_position, self.cga.translator(self.cga.sandwich(joint.distance * previous_direction, self.cga.rotor(self.plane_bivector, angle / 2.0))))
+        max_angle_anticlockwise_position = self.cga.sandwich(previous_position,  self.cga.translator(self.cga.sandwich(joint.distance * previous_direction, self.cga.rotor(-self.plane_bivector, angle / 2.0))))
         max_angle_clockwise_distance = self.cga.distance(current_position, max_angle_clockwise_position)
         max_angle_anticlockwise_distance = self.cga.distance(current_position, max_angle_anticlockwise_position)
         if(max_angle_anticlockwise_distance <= max_angle_clockwise_distance):

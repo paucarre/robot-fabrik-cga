@@ -4,10 +4,10 @@ class PointChain(object):
         cga = cga
         initial_point = cga.point(0, 0, 0)
         positions = [initial_point]
-        transformations = [cga.translation(cga.vector(0.0, 0.0, 0.0))]
+        transformations = [cga.translator(cga.vector(0.0, 0.0, 0.0))]
         for joint in joint_chain.joints:
             direction = cga.vector(joint.distance, 0.0, 0.0)
-            transformations.insert(len(transformations), cga.translation(direction))
+            transformations.insert(len(transformations), cga.translator(direction))
             positions.insert(len(positions), cga.sandwiches(initial_point, transformations))
         return PointChain(positions, cga)
 

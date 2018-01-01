@@ -25,7 +25,7 @@ class ConformalGeometricAlgebra(object):
         first_vector   = self.normalizeVector(first_vector)
         rotation_plane = self.normalizeVector(second_vector ^ first_vector)
         angle = self.angle(first_vector, second_vector);
-        return self.rotation(rotation_plane, angle)
+        return self.rotor(rotation_plane, angle)
 
     def toPoint(self, vector):
         return self.homogeneousPoint(vector + (0.5 ^ ( (vector**2) * self.e_inf ) ) + self.e_origin)
@@ -40,10 +40,10 @@ class ConformalGeometricAlgebra(object):
     def toVector(self, point):
         return ( self.homogeneousPoint(point) ^ self.minkowski_plane ) * self.minkowski_plane
 
-    def rotation(self, bivector, angle):
+    def rotor(self, bivector, angle):
         return math.cos(angle / 2.0) + (math.sin(angle / 2.0) ^ bivector)
 
-    def translation(self, vector):
+    def translator(self, vector):
         return 1.0 + ( 0.5 ^ (self.e_inf * vector) )
 
     def project(self, point_pair):
@@ -99,10 +99,10 @@ class ConformalGeometricAlgebra(object):
         return math.sqrt(abs(distance * ~distance))
 
     def sphere(self, center, radius):
-        sphere_point_1_translation = self.translation(self.vector(radius, 0.0, 0.0))
-        sphere_point_2_translation = self.translation(self.vector(0.0, radius, 0.0))
-        sphere_point_3_translation = self.translation(self.vector(0.0, 0.0, radius))
-        sphere_point_4_translation = self.translation(self.vector(-radius, 0.0, 0.0))
+        sphere_point_1_translation = self.translator(self.vector(radius, 0.0, 0.0))
+        sphere_point_2_translation = self.translator(self.vector(0.0, radius, 0.0))
+        sphere_point_3_translation = self.translator(self.vector(0.0, 0.0, radius))
+        sphere_point_4_translation = self.translator(self.vector(-radius, 0.0, 0.0))
         sphere = self.sandwich(center, sphere_point_1_translation) ^ \
                  self.sandwich(center, sphere_point_2_translation) ^ \
                  self.sandwich(center, sphere_point_3_translation) ^ \
