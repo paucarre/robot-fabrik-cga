@@ -3,6 +3,5 @@ help:
 	@echo
 
 test:
-	cd src && \
-	 coverage run  -m unittest discover -s .  -p 'Test*.py' && \
+	 coverage run  --source src/ -m unittest discover -s .  -p 'Test*.py' && \
 	 coverage report
