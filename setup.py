@@ -8,6 +8,5 @@ setup(name='robot-fabrik-cga',
       author='Pau Carre Cardona',
       author_email='pau.carre@gmail.com',
       url='https://github.com/paucarre/robot-fabrik-cga',
-      packages=['fabrik'],
-      package_dir = {'fabrik': 'src'},
+      packages=['fabrik']
      )
