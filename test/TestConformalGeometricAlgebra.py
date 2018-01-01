@@ -9,7 +9,7 @@ class TestConformalGeometricAlgebra(unittest.TestCase):
     def test_toRotor_point_1(self):
       source_point = cga.point(1.0, -10.0, 4.0)
       rotation_plane =  cga.e2 ^ cga.e3
-      expected_rotor = cga.rotation(rotation_plane, math.pi)
+      expected_rotor = cga.rotor(rotation_plane, math.pi)
       expected_destination_point = cga.sandwich(source_point, expected_rotor)
       computed_rotor = cga.toRotor(cga.toVector(source_point), cga.toVector(expected_destination_point))
       computed_destination_point = cga.sandwich(source_point, computed_rotor)
@@ -18,7 +18,7 @@ class TestConformalGeometricAlgebra(unittest.TestCase):
     def test_toRotor_point_2(self):
       source_point = cga.point(-2.0, 1.0, -10.0)
       rotation_plane =  cga.e2 ^ cga.e3
-      expected_rotor = cga.rotation(rotation_plane, math.pi)
+      expected_rotor = cga.rotor(rotation_plane, math.pi)
       expected_destination_point = cga.sandwich(source_point, expected_rotor)
       computed_rotor = cga.toRotor(cga.toVector(source_point), cga.toVector(expected_destination_point))
       computed_destination_point = cga.sandwich(source_point, computed_rotor)
@@ -37,7 +37,7 @@ class TestConformalGeometricAlgebra(unittest.TestCase):
 
     def test_translation(self):
       point = cga.point(1, -2, 3)
-      translation = cga.translation(cga.vector(1, -4, 2))
+      translation = cga.translator(cga.vector(1, -4, 2))
       moved_point = cga.sandwich(point, translation)
       self.assertEqual(moved_point, cga.point(2, -6, 5))
 
@@ -89,6 +89,6 @@ class TestConformalGeometricAlgebra(unittest.TestCase):
 
     def test_rotation(self):
       point = cga.point(math.cos(math.pi/2), math.sin(math.pi/2), 0)
-      rotation = cga.rotation(cga.e1 ^ cga.e3, math.pi / 2.0)
+      rotation = cga.rotor(cga.e1 ^ cga.e3, math.pi / 2.0)
       rotated_point = cga.sandwich(point, rotation)
       self.assertEqual(rotated_point, cga.point(0, math.sin(math.pi/2), math.cos(math.pi/2)))
