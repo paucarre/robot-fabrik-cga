@@ -12,6 +12,12 @@ class ConformalGeometricAlgebra(object):
         self.e_inf = self.e_hat + self.e
         self.minkowski_plane = self.e_inf ^ self.e_origin
 
+    def angleFromRotor(self, rotor):
+        sin_half_angle = float(rotor | (self.e1 ^ self.e2))
+        half_angle = math.asin(sin_half_angle)
+        angle = half_angle * 2.0
+        return angle
+
     def toRotor(self, first_vector, second_vector):
         second_vector  = self.normalizeVector(second_vector)
         first_vector   = self.normalizeVector(first_vector)

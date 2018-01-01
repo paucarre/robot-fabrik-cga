@@ -51,7 +51,6 @@ class FabrikSolver(object):
                 previous_position = current_position
             else:
                 current_direction = self.cga.direction(previous_position, current_position)
-                print(current_direction)
                 rotor = self.cga.toRotor(previous_direction, current_direction)
                 rotors.insert(len(rotors), rotor)
                 previous_direction = current_direction
