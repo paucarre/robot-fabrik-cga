@@ -81,6 +81,38 @@ class ConformalGeometricAlgebra(object):
     def direction(self, source_position, destination_position):
         return self.normalizeVector(self.toVector(destination_position) - self.toVector(source_position))
 
+    def distanceBetweenLineAndPoint(self, first_point, second_point, target_point):
+        plane = first_point ^ second_point ^ target_point ^ self.e_inf
+        print(plane)
+        print(~plane)
+        #line_direction = self.normalizeVector(self.toVector(second_point) - self.toVector(first_point))
+        #target_direction = self.normalizeVector(self.toVector(target_point) - self.toVector(first_point))
+        #plane = self.normalizeVector(line_direction ^ target_direction)
+        #normal_line_rotation = self.rotor(plane, math.pi / 2.0)
+        #orthogonal_line_direction = self.sandwich(line_direction, normal_line_rotation)
+
+
+        #line = self.line(first_point, second_point)
+        #orthogonal_line = self.line(target_point, self.sandwich(target_point, self.translator(orthogonal_line_direction)))
+
+        #print(line_direction)
+        #print(self.toVector(first_point))
+        #print(self.toVector(second_point))
+        #print(self.toVector(target_point))
+        #print(self.toVector(self.sandwich(target_point, self.translator(orthogonal_line_direction))))
+        #print(self.normalizeVector(orthogonal_line))
+        #print(self.normalizeVector(line))
+        #print(plane)
+        #print(orthogonal_line_direction)
+        #closest_point_to_line = ~((~orthogonal_line) ^ (~self.normalizeVector(line)))
+        #print(closest_point_to_line)
+        #print(self.toVector(closest_point_to_line)) # WRONG
+        #print(self.toVector(target_point)) # OK
+        #print(closest_point_to_line | target_point)
+        #parallel_line_in_target  = self.normalizeVector(target_point ^ (self.toVector(second_point) - self.toVector(first_point)) ^ self.e_inf)
+        #return line | parallel_line_in_target
+        return 3
+
     def angle(self, first_vector, second_vector):
         first_vector_normalized = self.normalizeVector(first_vector)
         second_vector_normalized = self.normalizeVector(second_vector)

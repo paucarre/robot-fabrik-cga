@@ -92,3 +92,11 @@ class TestConformalGeometricAlgebra(unittest.TestCase):
       rotation = cga.rotor(cga.e1 ^ cga.e3, math.pi / 2.0)
       rotated_point = cga.sandwich(point, rotation)
       self.assertEqual(rotated_point, cga.point(0, math.sin(math.pi/2), math.cos(math.pi/2)))
+
+    def test_distanceBetweenLineAndPoint(self):
+      pointA = cga.point(1.0, 0.0, 0.0)
+      pointB = cga.point(0.0, 1.0, 0.0)
+      point_target = cga.point(0.0, 0.0, 1.0)
+      distance = cga.distanceBetweenLineAndPoint(pointA, pointB, point_target)
+      #print(distance)
+      self.assertTrue(abs(distance - 0.5) < 1e-10)

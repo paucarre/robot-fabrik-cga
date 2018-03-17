@@ -57,6 +57,14 @@ class FabrikSolver(object):
                 previous_position = current_position
         return rotors
 
+    def articulationCloseToTarget(self, previous_position, current_position, target_position):
+        line = self.cga.line(previous_position, current_position)
+        parallel_line_in_target  = self.cga.e_inf ^ target_position ^ (current_position - previous_position)
+        #print(f"Line: {line}")
+        #print(f"Distance line to itself: {parallel_line_in_target | line}")
+        distance = (parallel_line_in_target | line)
+        return distance
+
     def solve(self, joint_chain, target_position, max_iterations=100):
         point_chain = PointChain.fromJoints(joint_chain, self.cga)
         iteration = 0
@@ -71,7 +79,10 @@ class FabrikSolver(object):
                 current_position = point_chain.get(index, forward)
                 previous_position = point_chain.get(index - 1, forward)
                 while(abs(current_position | previous_position) < self.resolution):
+                    #print("*** RANDOM DISTORTION APPLIED ***")
                     current_position = self.randomDistortion(current_position)
+                distance = self.articulationCloseToTarget(previous_position, current_position, current_target_position)
+                #print(f"Distance: {distance}")
                 line = self.cga.line(current_position, previous_position)
                 joint = joint_chain.get(index - 1, forward)
                 sphere = self.cga.sphere(previous_position, joint.distance)
@@ -83,6 +94,7 @@ class FabrikSolver(object):
                         current_position = self.resolveAngleConstraints(previous_direction, previous_position, current_position, angle, joint)
                         current_direction = self.cga.direction(previous_position, current_position)
                 point_chain.set(index, forward, current_position)
+                #print(point_chain)
                 previous_direction = current_direction
             iteration = iteration + 1
             forward = not forward
