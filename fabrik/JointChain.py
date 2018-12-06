@@ -8,11 +8,11 @@ class JointChain(object):
         return len(self.joints)
 
     def __repr__(self):
-        return f"{self}"
+        return str(self)
 
     def __str__(self):
-        joints_as_stirng = [f"{joint}" for joint in self.joints]
-        return f"Joints: {joints_as_stirng}"
+        joints_as_string = [str(joint) for joint in self.joints]
+        return "Joints: " + str(joints_as_string)
 
     def last(self):
         return self.joints[len(self.joints) - 1]

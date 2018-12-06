@@ -19,10 +19,10 @@ class PointChain(object):
         return len(self.positions)
 
     def __repr__(self):
-        return f"{self}"
+        return str(self)
 
     def __str__(self):
-        return f"Points (as vectors): {[self.cga.toVector(point) for point in self.positions]}"
+        return "Points (as vectors): "+ str([self.cga.toVector(point) for point in self.positions])
 
     def last(self):
         return self.positions[len(self.positions) - 1]
