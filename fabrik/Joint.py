@@ -11,7 +11,7 @@ class Joint(object):
             return self.joints[index]
 
     def __repr__(self):
-        return f"{self}"
+        return str(self)
 
     def __str__(self):
-        return f"[ Distance: {self.distance}, Angle Constraint: {self.angle_constraint} ]"
+        return "[ Distance: " + str(self.distance) + ", Angle Constraint: " + str(self.angle_constraint) + " ]"
