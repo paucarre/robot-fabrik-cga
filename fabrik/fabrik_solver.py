@@ -1,7 +1,8 @@
-from fabrik.ConformalGeometricAlgebra import ConformalGeometricAlgebra
-from fabrik.PointChain import PointChain
+from fabrik.cga import ConformalGeometricAlgebra
+from fabrik.point_chain import PointChain
 import math
 import logging
+
 
 class FabrikSolver(object):
     def __init__(self):
@@ -109,9 +110,7 @@ class FabrikSolver(object):
         distance = parallel_line_in_target | line
         return distance
 
-    def solve(
-        self, joint_chain, target_position, tolearance=1e-6, max_iterations=100
-    ):
+    def solve(self, joint_chain, target_position, tolearance=1e-6, max_iterations=100):
         """
         Input: The joint positions pi for i = 1,...,n, the
         target position t and the distances between each
@@ -126,17 +125,26 @@ class FabrikSolver(object):
         if root_to_target_distance > joint_chain_max_distance:
             # Unreachable target
             unreacheable_target_position = target_position
-            target_position = self.cga.to_point(self.cga.normalize_vector(self.cga.to_vector(target_position)) * joint_chain_max_distance)
-            logging.warn(f"""Unreacheable target {self.cga.to_vector(unreacheable_target_position)}, the robot is able to extend 
+            target_position = self.cga.to_point(
+                self.cga.normalize_vector(self.cga.to_vector(target_position))
+                * joint_chain_max_distance
+            )
+            logging.warn(
+                f"""Unreacheable target {self.cga.to_vector(unreacheable_target_position)}, the robot is able to extend 
                          at most {joint_chain_max_distance} meters but the 
                          target is at {root_to_target_distance} meters.
                          Setting the new target to {self.cga.to_vector(target_position)} as the closest to the 
-                         desired target that is likely reacheable.""")
+                         desired target that is likely reacheable."""
+            )
         # Likely reacheable target (within the joint chain sphere)
         end_effector_to_target_distance = self.cga.point_distance(
             target_position, point_chain[-1]
         )
-        while end_effector_to_target_distance > tolearance:
+        current_iteration = 1
+        while (
+            end_effector_to_target_distance > tolearance
+            and current_iteration <= max_iterations
+        ):
             # Fordward Reaching Stage
             point_chain[-1] = target_position
             for point_index in range(len(point_chain) - 1):
@@ -153,13 +161,11 @@ class FabrikSolver(object):
     def fabrik_iteration(self, point_chain, joint_chain, point_index, is_forward):
         iteration_type = "Forward" if is_forward else "Backward"
         logging.info(f"{iteration_type} point index {point_index}")
-        target_index = point_index + 1 if is_forward else point_index - 1        
+        target_index = point_index + 1 if is_forward else point_index - 1
         source_point = point_chain[point_index]
         target_point = point_chain[target_index]
-        points_distance = self.cga.point_distance(
-            source_point, target_point
-        )
-        joint_index  = point_index if is_forward else point_index - 1
+        points_distance = self.cga.point_distance(source_point, target_point)
+        joint_index = point_index if is_forward else point_index - 1
         joint_distance = joint_chain[joint_index].distance
         distance_ratio = joint_distance / points_distance
         # Linear Interpolation

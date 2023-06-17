@@ -1,10 +1,10 @@
 import unittest
-from fabrik.ConformalGeometricAlgebra import ConformalGeometricAlgebra
+from fabrik.cga import ConformalGeometricAlgebra
 from clifford import *
-from fabrik.FabrikSolver import FabrikSolver
-from fabrik.PointChain import PointChain
-from fabrik.JointChain import JointChain
-from fabrik.Joint import Joint
+from fabrik.fabrik_solver import FabrikSolver
+from fabrik.point_chain import PointChain
+from fabrik.joint_chain import JointChain
+from fabrik.joint import Joint
 import math
 
 fabrik_solver = FabrikSolver()

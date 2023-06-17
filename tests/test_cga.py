@@ -1,5 +1,5 @@
 import unittest
-from fabrik.ConformalGeometricAlgebra import ConformalGeometricAlgebra
+from fabrik.cga import ConformalGeometricAlgebra
 from clifford import *
 import math
 
