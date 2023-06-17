@@ -110,7 +110,14 @@ class FabrikSolver(object):
         distance = parallel_line_in_target | line
         return distance
 
-    def solve(self, joint_chain, target_position, tolearance=1e-6, max_iterations=100):
+    def solve(
+        self,
+        joint_chain,
+        target_position,
+        target_orientation=None,
+        tolearance=1e-6,
+        max_iterations=100,
+    ):
         """
         Input: The joint positions pi for i = 1,...,n, the
         target position t and the distances between each
@@ -136,25 +143,39 @@ class FabrikSolver(object):
                          Setting the new target to {self.cga.to_vector(target_position)} as the closest to the 
                          desired target that is likely reacheable."""
             )
+        target_position_index = len(point_chain) - 1
+        if target_orientation is not None:
+            target_orientation = self.cga.normalize_vector(target_orientation)
+            target_position = self.cga.to_point(
+                self.cga.to_vector(target_position)
+                - (target_orientation * joint_chain[-1].distance)
+            )
+            target_position_index = len(point_chain) - 2
         # Likely reacheable target (within the joint chain sphere)
         end_effector_to_target_distance = self.cga.point_distance(
-            target_position, point_chain[-1]
+            target_position, point_chain[target_position_index]
         )
         current_iteration = 1
         while (
             end_effector_to_target_distance > tolearance
             and current_iteration <= max_iterations
         ):
-            # Fordward Reaching Stage
-            point_chain[-1] = target_position
-            for point_index in range(len(point_chain) - 1):
+            # Fordward
+            point_chain[target_position_index] = target_position
+            for point_index in range(target_position_index):
                 self.fabrik_iteration(point_chain, joint_chain, point_index, True)
-            # Backward Reaching Stage
+            # Backward
             point_chain[0] = self.cga.to_point(self.cga.e_origin)
-            for point_index in range(len(point_chain) - 1, 1, -1):
+            for point_index in range(target_position_index, 1, -1):
                 self.fabrik_iteration(point_chain, joint_chain, point_index, False)
             end_effector_to_target_distance = self.cga.point_distance(
-                target_position, point_chain[-1]
+                target_position, point_chain[target_position_index]
+            )
+            current_iteration += 1
+        if target_orientation is not None:
+            point_chain[-1] = self.cga.to_point(
+                self.cga.to_vector(point_chain[-2])
+                + (target_orientation * joint_chain[-1].distance)
             )
         return point_chain
 

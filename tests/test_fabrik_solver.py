@@ -86,6 +86,27 @@ class TestFabrikSolver(unittest.TestCase):
         )
         self.assertTrue(cga.distance(positions[-1], expected_target_point) < 1e-9)
 
+    def test_solve_3_joints_orientation(self):
+        first_joint = Joint(2.0 * math.pi, 50.0)
+        second_joint = Joint(2.0 * math.pi, 50.0)
+        third_joint = Joint(2.0 * math.pi, 50.0)
+        joint_chain = JointChain([first_joint, second_joint, third_joint])
+        target_point = cga.sandwich(
+            cga.point(50.0, 0.0, 0.0), cga.rotor(cga.e1 ^ cga.e2, math.pi / 4.0)
+        )
+        fabrik_solver = FabrikSolver()
+        target_orientation = cga.e1 + cga.e2 + cga.e3
+        positions = fabrik_solver.solve(joint_chain, target_point, target_orientation)
+        self.assertTrue(cga.distance(positions[-1], target_point) < 1e-9)
+        orientation = cga.to_vector(positions[-1]) - cga.to_vector(positions[-2])
+        self.assertTrue(
+            cga.vector_norm(
+                cga.normalize_vector(orientation) - cga.normalize_vector(target_orientation)
+            )
+            < 1e-9
+        )
+        self.assertTrue(math.sqrt(cga.vector_norm(orientation)) - joint_chain[-1].distance < 1e-9)
+
     # def test_solve_2_joints_square_point_1(self):
     #    first_joint  = Joint(2.0 * math.pi, 50.0)
     #    second_joint = Joint(2.0 * math.pi, 50.0)

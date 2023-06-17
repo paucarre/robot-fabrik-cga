@@ -100,8 +100,11 @@ class ConformalGeometricAlgebra(object):
             ^ self.e_inf
         )
 
+    def vector_norm(self, vector):
+        return math.sqrt(abs(vector * ~vector))
+
     def normalize_vector(self, vector):
-        norm2 = math.sqrt(abs(vector * ~vector))
+        norm2 = self.vector_norm(vector)
         if norm2 > self.resolution:
             return vector / norm2
         else:
