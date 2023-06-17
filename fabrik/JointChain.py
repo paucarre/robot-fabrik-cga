@@ -1,5 +1,8 @@
+from collections.abc import Sequence
+
+
 # TODO: Currently only supports planar robots. Need to support full D-H topology
-class JointChain(object):
+class JointChain(Sequence):
     def __init__(self, joints):
         self.joints = joints
 
@@ -8,6 +11,15 @@ class JointChain(object):
 
     def __repr__(self):
         return f"{self}"
+
+    def __getitem__(self, i):
+        return self.joints[i]
+
+    def __len__(self):
+        return len(self.joints)
+
+    def max_distance(self):
+        return sum([joint.distance for joint in self.joints])
 
     def __str__(self):
         joints_as_stirng = [f"{joint}" for joint in self.joints]

@@ -1,7 +1,7 @@
 from fabrik.ConformalGeometricAlgebra import ConformalGeometricAlgebra
 from fabrik.PointChain import PointChain
 import math
-
+import logging
 
 class FabrikSolver(object):
     def __init__(self):
@@ -109,7 +109,9 @@ class FabrikSolver(object):
         distance = parallel_line_in_target | line
         return distance
 
-    def fabrik_solver(self, joint_chain, target_position, max_iterations=100):
+    def solve(
+        self, joint_chain, target_position, tolearance=1e-6, max_iterations=100
+    ):
         """
         Input: The joint positions pi for i = 1,...,n, the
         target position t and the distances between each
@@ -117,63 +119,57 @@ class FabrikSolver(object):
         Output: The new joint positions pi for i = 1,...,n.
         """
         point_chain = PointChain.from_joints(joint_chain, self.cga)
-        root_to_target_distance = self.cga.point_distance(target_position, self.e_origin)
-        
-        """
-        1.1 % The distance between root and target
-        1.2 dist = jp1  tj
-        1.3 % Check whether the target is within reach
-        1.4 if dist > d1 + d2 +...+ dn1 then
-        1.5 % The target is unreachable
-        1.6 for i = 1,...,n  1 do
-        1.7 % Find the distance ri between the target t and
-        the joint
-        position pi
-        1.8 ri = jt  pij
-        1.9 ki = di/ri
-        1.10 % Find the new joint positions pi.
-        1.11 pi+1 = (1  ki) pi + kit
-        1.12 end
-        1.13 else
-        1.14 % The target is reachable; thus, set as b the
-        initial position of the
-        joint p1
-        1.15 b = p1
-        1.16 % Check whether the distance between the end
-        effector pn
-        and the target t is greater than a tolerance.
-        1.17 difA = jpn  tj
-        1.18 while difA > tol do
-        1.19 % STAGE 1: FORWARD REACHING
-        1.20 % Set the end effector pn as target t
-        1.21 pn = t
-        1.22 for i = n  1,...,1 do
-        1.23 % Find the distance ri between the new joint
-        position
-        pi+1 and the joint pi
-        1.24 ri = jpi+1  pij
-        1.25 ki = di/ri
-        1.26 % Find the new joint positions pi.
-        1.27 pi = (1  ki) pi+1 + kipi
-        1.28 end
-        1.29 % STAGE 2: BACKWARD REACHING
-        1.30 % Set the root p1 its initial position.
-        1.31 p1 = b
-        1.32 for i = 1,...,n  1 do
-        1.33 % Find the distance ri between the new joint
-        position pi
-        and the joint pi+1
-        1.34 ri = jpi+1  pij
-        1.35 ki = di/ri
-        1.36 % Find the new joint positions pi.
-        1.37 pi+1 = (1  ki)pi + kipi+1
-        1.38 end
-        1.39 difA = jpn  tj
-        1.40 end
-        1.41 end
-        """
+        root_to_target_distance = self.cga.point_distance(
+            target_position, self.cga.to_point(self.cga.e_origin)
+        )
+        joint_chain_max_distance = joint_chain.max_distance()
+        if root_to_target_distance > joint_chain_max_distance:
+            # Unreachable target
+            unreacheable_target_position = target_position
+            target_position = self.cga.to_point(self.cga.normalize_vector(self.cga.to_vector(target_position)) * joint_chain_max_distance)
+            logging.warn(f"""Unreacheable target {self.cga.to_vector(unreacheable_target_position)}, the robot is able to extend 
+                         at most {joint_chain_max_distance} meters but the 
+                         target is at {root_to_target_distance} meters.
+                         Setting the new target to {self.cga.to_vector(target_position)} as the closest to the 
+                         desired target that is likely reacheable.""")
+        # Likely reacheable target (within the joint chain sphere)
+        end_effector_to_target_distance = self.cga.point_distance(
+            target_position, point_chain[-1]
+        )
+        while end_effector_to_target_distance > tolearance:
+            # Fordward Reaching Stage
+            point_chain[-1] = target_position
+            for point_index in range(len(point_chain) - 1):
+                self.fabrik_iteration(point_chain, joint_chain, point_index, True)
+            # Backward Reaching Stage
+            point_chain[0] = self.cga.to_point(self.cga.e_origin)
+            for point_index in range(len(point_chain) - 1, 1, -1):
+                self.fabrik_iteration(point_chain, joint_chain, point_index, False)
+            end_effector_to_target_distance = self.cga.point_distance(
+                target_position, point_chain[-1]
+            )
+        return point_chain
 
-    def solve(self, joint_chain, target_position, max_iterations=100):
+    def fabrik_iteration(self, point_chain, joint_chain, point_index, is_forward):
+        iteration_type = "Forward" if is_forward else "Backward"
+        logging.info(f"{iteration_type} point index {point_index}")
+        target_index = point_index + 1 if is_forward else point_index - 1        
+        source_point = point_chain[point_index]
+        target_point = point_chain[target_index]
+        points_distance = self.cga.point_distance(
+            source_point, target_point
+        )
+        joint_index  = point_index if is_forward else point_index - 1
+        joint_distance = joint_chain[joint_index].distance
+        distance_ratio = joint_distance / points_distance
+        # Linear Interpolation
+        source_point = self.cga.to_point(
+            ((1.0 - distance_ratio) * self.cga.to_vector(target_point))
+            + (distance_ratio * self.cga.to_vector(source_point))
+        )
+        point_chain[point_index] = source_point
+
+    def solve_old(self, joint_chain, target_position, max_iterations=100):
         point_chain = PointChain.from_joints(joint_chain, self.cga)
         iteration = 0
         forward = True

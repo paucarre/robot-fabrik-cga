@@ -1,4 +1,13 @@
-class PointChain(object):
+from collections.abc import Sequence
+
+
+class PointChain(Sequence):
+    def __getitem__(self, i):
+        return self.positions[i]
+
+    def __len__(self):
+        return len(self.positions)
+
     def from_joints(joint_chain, cga):
         cga = cga
         initial_point = cga.point(0, 0, 0)
@@ -24,6 +33,9 @@ class PointChain(object):
 
     def __str__(self):
         return f"Points (as vectors): {[self.cga.to_vector(point) for point in self.positions]}"
+
+    def __setitem__(self, key, value):
+        self.positions[key] = value
 
     def last(self):
         return self.positions[len(self.positions) - 1]

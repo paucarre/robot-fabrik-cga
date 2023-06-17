@@ -46,7 +46,7 @@ class ConformalGeometricAlgebra(object):
         return self.rotor(rotation_plane, angle)
 
     def point_distance(self, point_a, point_b):
-        return math.sqrt(- (point_a | point_b) * 2.0)
+        return math.sqrt(-(point_a | point_b) * 2.0)
 
     def to_point(self, vector):
         return self.homogeneous_point(

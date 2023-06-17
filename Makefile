@@ -5,5 +5,4 @@ help:
 	@echo
 
 test:
-	 coverage run --source fabrik/  -m unittest discover -s .  -p 'Test*.py' && \
-	 coverage report
+	poetry run pytest --cov-report term --cov=fabrik tests
