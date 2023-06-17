@@ -1,0 +1,26 @@
+[tool.poetry]
+name = "fabrik"
+version = "0.1.0"
+description = ""
+authors = ["Pau Carré Cardona <pau.carre@gmail.com>"]
+readme = "README.md"
+packages = [{include = "fabrik"}]
+
+[tool.poetry.dependencies]
+python = "^3.10"
+clifford = "^1.4.0"
+coverage = "7.2.7"
+#jupyterlab = "4.0.1"
+#black = "^23.3.0"
+#autoflake = "^2.1.1"
+#opencv-python = "^4.7.0.72"
+black = "^23.3.0"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+[[tool.poetry.source]]
+name = "PyPI"
+priority = "primary"
+
