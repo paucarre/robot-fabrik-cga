@@ -10,13 +10,13 @@ packages = [{include = "fabrik"}]
 python = "^3.10"
 clifford = "^1.4.0"
 coverage = "7.2.7"
-#jupyterlab = "4.0.1"
-#black = "^23.3.0"
-#autoflake = "^2.1.1"
-#opencv-python = "^4.7.0.72"
 black = "^23.3.0"
 pytest = "^7.3.2"
 pytest-coverage = "^0.0"
+pytransform3d = "^3.2.0"
+pyqt5 = "^5.15.9"
+trimesh = "^3.22.1"
+pycollada = "^0.7.2"
 
 [build-system]
 requires = ["poetry-core"]

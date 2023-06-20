@@ -101,11 +101,14 @@ class TestFabrikSolver(unittest.TestCase):
         orientation = cga.to_vector(positions[-1]) - cga.to_vector(positions[-2])
         self.assertTrue(
             cga.vector_norm(
-                cga.normalize_vector(orientation) - cga.normalize_vector(target_orientation)
+                cga.normalize_vector(orientation)
+                - cga.normalize_vector(target_orientation)
             )
             < 1e-9
         )
-        self.assertTrue(math.sqrt(cga.vector_norm(orientation)) - joint_chain[-1].distance < 1e-9)
+        self.assertTrue(
+            math.sqrt(cga.vector_norm(orientation)) - joint_chain[-1].distance < 1e-9
+        )
 
     # def test_solve_2_joints_square_point_1(self):
     #    first_joint  = Joint(2.0 * math.pi, 50.0)
