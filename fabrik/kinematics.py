@@ -146,6 +146,4 @@ class Mechanisms:
 
 if __name__ == "__main__":
     urdf_robot = UrdfRobotLibrary.dobot_cr5()
-    # points = urdf_robot.points([0, 0, 0, 0, 0, 0])
-    # print(points)
     open_chains = urdf_robot.extract_open_chains(0.1)

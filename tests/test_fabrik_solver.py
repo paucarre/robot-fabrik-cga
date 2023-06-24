@@ -109,13 +109,3 @@ class TestFabrikSolver(unittest.TestCase):
         self.assertTrue(
             math.sqrt(cga.vector_norm(orientation)) - joint_chain[-1].distance < 1e-9
         )
-
-    # def test_solve_2_joints_square_point_1(self):
-    #    first_joint  = Joint(2.0 * math.pi, 50.0)
-    #    second_joint = Joint(2.0 * math.pi, 50.0)
-    #    joint_chain  = JointChain([first_joint, second_joint])
-    #    target_point = cga.point(10.0, 0.0, 0.0)
-    #    fabrik_solver = FabrikSolver()
-    #    positions = fabrik_solver.solve(joint_chain, target_point)
-    #    print(positions)
-    #    self.assertTrue(cga.distance(positions.last(), target_point) < 1e-9)

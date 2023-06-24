@@ -54,7 +54,7 @@ class ConformalGeometricAlgebra(object):
         )
 
     def homogeneous_point(self, point):
-        if abs(point | self.e_inf) > self.resolution:
+        if abs(point | self.e_inf) > 2.0 * self.resolution:
             return point * (-point | self.e_inf).normalInv()
         else:
             # zero point, non-invertible
