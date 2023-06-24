@@ -4,12 +4,15 @@ import numpy as np
 from fabrik.kinematics import OpenChainMechanism, UrdfRobotLibrary
 import random
 
+
 class TestOpenChainMechanism(unittest.TestCase):
     def test_forward_transformation_translation_rotation(self):
         screws = [np.array([0, 0, 0, 0, 0, 1.0]), np.array([1.0, 0, 0, 0, 0, 0])]
         # translate 10 meters in z and rotate around x PI rads
         coords = [10.0, np.pi]
-        open_chain = OpenChainMechanism(screws, np.eye(4))
+        open_chain = OpenChainMechanism(
+            screws, np.eye(4), [(0, 100.0), (0, math.pi * 2)]
+        )
         matrix = open_chain.forward_transformation(coords)
         expected_matrix = np.array(
             [
@@ -25,7 +28,9 @@ class TestOpenChainMechanism(unittest.TestCase):
         screws = [np.array([1.0, 0, 0, 0, 0, 0.0]), np.array([0.0, 0, 0, 1.0, 0, 0])]
         # rotate 90 degrees around x and then translating towards y ( which is x wrt the original frame)
         coords = [math.pi / 2.0, 10.0]
-        open_chain = OpenChainMechanism(screws, np.eye(4))
+        open_chain = OpenChainMechanism(
+            screws, np.eye(4), [(0, math.pi * 2), (0, 100.0)]
+        )
         matrix = open_chain.forward_transformation(coords)
         expected_matrix = np.array(
             [
@@ -49,7 +54,7 @@ class TestOpenChainMechanism(unittest.TestCase):
                 [0, 0, 0, 1],
             ]
         )
-        open_chain = OpenChainMechanism(screws, initial)
+        open_chain = OpenChainMechanism(screws, initial, [(0, 100.0), (0, math.pi * 2)])
         matrix = open_chain.forward_transformation(coords)
         expected_matrix = (
             np.array(
@@ -72,8 +77,14 @@ class UrdfRobot(unittest.TestCase):
         for _ in range(100):
             coordinates = []
             for i in range(len(urdf_robot.joint_names)):
-                coordinates.append(random.uniform(urdf_robot.joint_limits[i][0], urdf_robot.joint_limits[i][1]))
+                coordinates.append(
+                    random.uniform(
+                        urdf_robot.joint_limits[i][0], urdf_robot.joint_limits[i][1]
+                    )
+                )
             transformations = urdf_robot.transformations(coordinates)
             for i, transformation in enumerate(transformations):
                 computed = open_chains[i].forward_transformation(coordinates[: i + 1])
-                self.assertTrue(np.isclose(computed, transformation, rtol=1e-05, atol=1e-05).all())
+                self.assertTrue(
+                    np.isclose(computed, transformation, rtol=1e-05, atol=1e-05).all()
+                )

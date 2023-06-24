@@ -86,7 +86,9 @@ class UrdfRobot:
             coordinates = exponential_coordinates_from_transform(exponential)
             screw = coordinates / epsillon
             screws.append(screw)
-            open_chain = OpenChainMechanism(screws.copy(), transform_zero, self.joint_limits[:i + 1])
+            open_chain = OpenChainMechanism(
+                screws.copy(), transform_zero, self.joint_limits[: i + 1]
+            )
             open_chains.append(open_chain)
         return open_chains
 
