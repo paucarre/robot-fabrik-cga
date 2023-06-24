@@ -17,6 +17,7 @@ pytransform3d = "^3.2.0"
 pyqt5 = "^5.15.9"
 trimesh = "^3.22.1"
 pycollada = "^0.7.2"
+pydot = "^1.4.2"
 
 [build-system]
 requires = ["poetry-core"]
