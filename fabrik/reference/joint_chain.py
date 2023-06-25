@@ -15,9 +15,6 @@ class JointChain(Sequence):
     def __getitem__(self, i):
         return self.joints[i]
 
-    def __len__(self):
-        return len(self.joints)
-
     def max_distance(self):
         return sum([joint.distance for joint in self.joints])
 

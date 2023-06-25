@@ -3,6 +3,7 @@ from pytransform3d.transformations import (
     concat,
     transform_from_exponential_coordinates,
     exponential_coordinates_from_transform,
+    invert_transform,
 )
 from pytransform3d.urdf import (
     UrdfTransformManager,
@@ -11,6 +12,10 @@ from pytransform3d.urdf import (
 )
 from functools import reduce
 import matplotlib.pyplot as plt
+
+
+def zero_pose():
+    return np.array([[1, 0, 0, 0], [0, 0, 0, 1]]).T
 
 
 class OpenChainMechanism:
@@ -30,6 +35,12 @@ class OpenChainMechanism:
             np.eye(4),
         )
         return concat(self.initial_matrix, transformations)
+
+    def __len__(self):
+        return len(self.screws)
+
+    def __getitem__(self, i):
+        return self.screws[i]
 
 
 class UrdfRobot:
@@ -80,7 +91,7 @@ class UrdfRobot:
             exponential = (
                 previous_transform_zero
                 @ transform_epsillon
-                @ np.linalg.inv(transform_zero)
+                @ invert_transform(transform_zero)
             )
             # coordinates = vee ( log ( exponential ) )
             coordinates = exponential_coordinates_from_transform(exponential)

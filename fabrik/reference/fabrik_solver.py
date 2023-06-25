@@ -1,5 +1,5 @@
 from fabrik.cga import ConformalGeometricAlgebra
-from fabrik.point_chain import PointChain
+from fabrik.reference.point_chain import PointChain
 import math
 import logging
 
