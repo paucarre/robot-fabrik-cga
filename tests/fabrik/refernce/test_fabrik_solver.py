@@ -4,7 +4,7 @@ from clifford import *
 from fabrik.reference.fabrik_solver import FabrikSolver
 from fabrik.reference.point_chain import PointChain
 from fabrik.reference.joint_chain import JointChain
-from fabrik.joint import Joint
+from fabrik.reference.joint import Joint
 import math
 
 fabrik_solver = FabrikSolver()
