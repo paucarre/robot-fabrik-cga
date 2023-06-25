@@ -1,5 +1,4 @@
-from clifford import *
-import random
+from clifford import Cl, eps, pretty
 import math
 
 

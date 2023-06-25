@@ -1,6 +1,5 @@
 import unittest
 from fabrik.cga import ConformalGeometricAlgebra
-from clifford import *
 from fabrik.reference.fabrik_solver import FabrikSolver
 from fabrik.reference.point_chain import PointChain
 from fabrik.reference.joint_chain import JointChain

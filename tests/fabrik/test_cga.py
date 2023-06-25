@@ -1,6 +1,5 @@
 import unittest
 from fabrik.cga import ConformalGeometricAlgebra
-from clifford import *
 import math
 
 cga = ConformalGeometricAlgebra(1e-20)

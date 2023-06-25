@@ -1,8 +1,5 @@
 from fabrik.cga import ConformalGeometricAlgebra
-from fabrik.point_chain import PointChain
-import math
-import logging
-from fabrik.kinematics import zero_pose
+from fabrik.kinematics import UrdfRobotLibrary
 from pytransform3d.transformations import (
     invert_transform,
     transform_from_exponential_coordinates,
@@ -40,7 +37,6 @@ class FabrikRoboticsSolver(object):
         if none is within constraints take the constrant closer to the line,
         otherwise take the point closer to zero pose
         """
-        pass
 
     def end_effector_to_target(
         self,

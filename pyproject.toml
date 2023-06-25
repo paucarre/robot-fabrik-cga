@@ -18,6 +18,7 @@ pyqt5 = "^5.15.9"
 trimesh = "^3.22.1"
 pycollada = "^0.7.2"
 pydot = "^1.4.2"
+autoflake = "^2.2.0"
 
 [build-system]
 requires = ["poetry-core"]
