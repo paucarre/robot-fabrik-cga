@@ -1,7 +1,8 @@
 .PHONY: test format
 
 help:
-	@echo "make test   -- runs tests for project"
+	@echo "make test   -- runs tests and generates coverage report"
+	@echo "make format -- runs formats and basic code cleanup"
 	@echo
 
 test:

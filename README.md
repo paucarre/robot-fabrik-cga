@@ -14,7 +14,7 @@ and operations to be represented algebraically; such as points at infinity, vect
 curves the projected plane into [stereographic projection](https://en.wikipedia.org/wiki/Stereographic_projection) (thus conformal), creating a [null cone](https://en.wikipedia.org/wiki/Light_cone#:~:text=In%20special%20and%20general%20relativity,directions%2C%20would%20take%20through%20spacetime.) analogous
 to the one from special relativity with [signature](https://en.wikipedia.org/wiki/Metric_signature) **(4, 1, 0)**. The overdimensioning emerges as the time dimension in special relativity but within engineering and for practical reasons it is often normalized to one, and conceptually detached from time (no time-space fabric is used, only interpreted as time-agnostic geometry). This algebra allows great operability for the 
 **FABRIK** algorithm as it has curved shapes, very common in robotics, and operations on them, steaming naturally from geometric algebra. Finally, despite its curved nature, it also allows straight geometries such as lines, vectors or planes to be represented, fundamental as well for robotics and specifically within **FABRIK**
-constained geometry.
+constrained geometry.
 
 To manage the [SE(3)](https://www.seas.upenn.edu/~meam620/slides/kinematicsI.pdf) group, the project uses classical Linear Algebra Lie-group theory from [pytransform3d library](https://dfki-ric.github.io/pytransform3d/) as it's a well-tested and robust library. **CGA SE(3)** representation is not used.
 
@@ -25,6 +25,8 @@ For further reading:
     - [Geometric Algebra: An Introduction with Applications in Euclidean and Conformal Geometry](https://scholarworks.sjsu.edu/cgi/viewcontent.cgi?article=7943&context=etd_theses)
     - [Geometric algebra, conformal geometry and the common curves problem](https://kth.diva-portal.org/smash/get/diva2:1120584/FULLTEXT01.pdf)
     - [A Survey of Geometric Algebra and Geometric Calculus](http://www.faculty.luther.edu/~macdonal/GA&GC.pdf)
+    - [Geometric algebra, conformal geometry and the common curves problem](https://kth.diva-portal.org/smash/get/diva2:1120584/FULLTEXT01.pdf)
+    - [Conformal Geometric Algebra Wiki](https://conformalgeometricalgebra.org)
 - Lie Group Theory
     - [A micro Lie theory for state estimation in robotics](https://arxiv.org/pdf/1812.01537.pdf)
 

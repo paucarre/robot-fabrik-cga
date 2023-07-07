@@ -14,6 +14,7 @@ from functools import reduce
 import matplotlib.pyplot as plt
 
 
+# TODO: use directly se(3) algebra and transform with adjoint
 def zero_pose():
     return np.array([[1, 0, 0, 0], [0, 0, 0, 1]]).T
 
@@ -26,8 +27,8 @@ class OpenChainMechanism:
 
     def forward_transformation(self, coordinates):
         transformations = [
-            transform_from_exponential_coordinates(screw * corordinate)
-            for screw, corordinate in zip(self.screws, coordinates)
+            transform_from_exponential_coordinates(screw * coordinate)
+            for screw, coordinate in zip(self.screws, coordinates)
         ]
         transformations = reduce(
             lambda transform, computed_transform: concat(computed_transform, transform),
@@ -54,9 +55,9 @@ class UrdfRobot:
         self.joint_types = [joint.joint_type for joint in self.joints]
         self.joint_transformation = [joint.child2parent for joint in self.joints]
         self.joint_limits = [joint.limits for joint in self.joints]
-        self.tansform_manager = UrdfTransformManager()
-        initialize_urdf_transform_manager(self.tansform_manager, name, links, joints)
-        transform_indices = self.tansform_manager.to_dict()["transform_to_ij_index"]
+        self.transform_manager = UrdfTransformManager()
+        initialize_urdf_transform_manager(self.transform_manager, name, links, joints)
+        transform_indices = self.transform_manager.to_dict()["transform_to_ij_index"]
         self.transform_indices = {
             joint_pair: index for joint_pair, index in transform_indices
         }
@@ -65,7 +66,7 @@ class UrdfRobot:
         link_source = self.link_names[i]
         link_destination = self.link_names[i + 1]
         transform_index = self.transform_indices[(link_destination, link_source)]
-        transform = self.tansform_manager.to_dict()["transforms"][transform_index][1]
+        transform = self.transform_manager.to_dict()["transforms"][transform_index][1]
         transform = np.array(
             [transform[:4], transform[4:8], transform[8:12], transform[12:]],
             dtype=np.float32,
@@ -78,10 +79,10 @@ class UrdfRobot:
         transform_zero = np.eye(4)
         for i in range(len(self.link_names) - 1):
             for joint_name in self.joint_names:
-                self.tansform_manager.set_joint(joint_name, 0.0)
+                self.transform_manager.set_joint(joint_name, 0.0)
             previous_transform_zero = transform_zero
             transform_zero = transform_zero @ self.get_transform(i)
-            self.tansform_manager.set_joint(self.joint_names[i], epsillon)
+            self.transform_manager.set_joint(self.joint_names[i], epsillon)
             transform_epsillon = self.get_transform(i)
             """
                 Mad = Tab(0)Tbc(0)Tcd(0)
@@ -105,7 +106,7 @@ class UrdfRobot:
 
     def transformations(self, values):
         for i, joint_name in enumerate(self.joint_names):
-            self.tansform_manager.set_joint(joint_name, values[i])
+            self.transform_manager.set_joint(joint_name, values[i])
         transform = np.eye(4)
         transformations = []
         for i in range(len(self.link_names) - 1):
@@ -114,11 +115,11 @@ class UrdfRobot:
         return transformations
 
     def display(self):
-        ax = self.tansform_manager.plot_frames_in(
+        ax = self.transform_manager.plot_frames_in(
             self.link_names[-1], s=0.1, whitelist=self.link_names, show_name=True
         )
-        ax = self.tansform_manager.plot_connections_in(self.link_names[-1], ax=ax)
-        self.tansform_manager.plot_visuals(self.link_names[-1], ax=ax)
+        ax = self.transform_manager.plot_connections_in(self.link_names[-1], ax=ax)
+        self.transform_manager.plot_visuals(self.link_names[-1], ax=ax)
         ax.set_xlim3d((-0.0, 0.25))
         ax.set_ylim3d((-0.1, 0.25))
         ax.set_zlim3d((0.1, 0.30))
