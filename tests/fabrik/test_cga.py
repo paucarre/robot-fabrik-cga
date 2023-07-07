@@ -123,6 +123,32 @@ class TestConformalGeometricAlgebra(unittest.TestCase):
         distance = cga.point_distance(point_a, point_b)
         self.assertTrue(abs(distance - math.sqrt(5.0)) < 1e-10)
 
+    def test_plane_from_non_colinear_points(self):
+        point_1 = cga.point(0.0, 0.0, 1.0)
+        point_2 = cga.point(1.0, 0.0, 1.0)
+        point_3 = cga.point(0.0, 1.0, 1.1)
+        plane = cga.plane_from_non_colinear_points(point_1, point_2, point_3)
+        expected_normal = cga.vector(0.0, -0.1, 1.0)
+        self.assertTrue(
+            abs(cga.vector_norm(expected_normal - cga.normal_from_plane(plane))) < 0.01
+        )
+        point_1 = cga.point(0.0, 0.0, 1.0)
+        point_2 = cga.point(1.0, 0.0, 1.1)
+        point_3 = cga.point(0.0, 1.0, 1.0)
+        plane = cga.plane_from_non_colinear_points(point_1, point_2, point_3)
+        expected_normal = cga.vector(-0.1, 0.0, 1.0)
+        self.assertTrue(
+            abs(cga.vector_norm(expected_normal - cga.normal_from_plane(plane))) < 0.01
+        )
+        point_1 = cga.point(0.0, 0.0, 1.1)
+        point_2 = cga.point(1.0, 0.0, 1.0)
+        point_3 = cga.point(0.0, 1.0, 1.0)
+        plane = cga.plane_from_non_colinear_points(point_1, point_2, point_3)
+        expected_normal = cga.vector(0.1, 0.1, 1.0)
+        self.assertTrue(
+            abs(cga.vector_norm(expected_normal - cga.normal_from_plane(plane))) < 0.01
+        )
+
 
 """
     def test_distance_between_line_and_point(self):

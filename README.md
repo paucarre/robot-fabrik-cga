@@ -25,7 +25,6 @@ For further reading:
     - [Geometric Algebra: An Introduction with Applications in Euclidean and Conformal Geometry](https://scholarworks.sjsu.edu/cgi/viewcontent.cgi?article=7943&context=etd_theses)
     - [Geometric algebra, conformal geometry and the common curves problem](https://kth.diva-portal.org/smash/get/diva2:1120584/FULLTEXT01.pdf)
     - [A Survey of Geometric Algebra and Geometric Calculus](http://www.faculty.luther.edu/~macdonal/GA&GC.pdf)
-    - [Geometric algebra, conformal geometry and the common curves problem](https://kth.diva-portal.org/smash/get/diva2:1120584/FULLTEXT01.pdf)
     - [Conformal Geometric Algebra Wiki](https://conformalgeometricalgebra.org)
 - Lie Group Theory
     - [A micro Lie theory for state estimation in robotics](https://arxiv.org/pdf/1812.01537.pdf)

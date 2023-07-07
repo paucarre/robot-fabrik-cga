@@ -114,6 +114,16 @@ class ConformalGeometricAlgebra(object):
             self.to_vector(destination_position) - self.to_vector(source_position)
         )
 
+    def normal_from_plane(self, plane):
+        # dual = plane.dual()
+        # x = -dual.lc(self.e1)
+        # y = -dual.lc(self.e2)
+        # z = -dual.lc(self.e3)
+        x = -plane.lc(self.e ^ self.e2 ^ self.e3 ^ self.e_hat)
+        y = -plane.lc(self.e ^ self.e3 ^ self.e1 ^ self.e_hat)
+        z = -plane.lc(self.e ^ self.e1 ^ self.e2 ^ self.e_hat)
+        return self.vector(x, y, z)
+
     """
     def distance_between_line_and_point(self, first_point, second_point, target_point):
         plane = first_point ^ second_point ^ target_point ^ self.e_inf
@@ -177,3 +187,19 @@ class ConformalGeometricAlgebra(object):
             ^ self.sandwich(center, sphere_point_4_translation)
         )
         return sphere
+
+    def circle(self, center, radius):
+        circle_point_1_translation = self.translator(self.vector(radius, 0.0, 0.0))
+        circle_point_2_translation = self.translator(self.vector(0.0, radius, 0.0))
+        circle_point_3_translation = self.translator(self.vector(0.0, 0.0, radius))
+        return (
+            self.sandwich(center, circle_point_1_translation)
+            ^ self.sandwich(center, circle_point_2_translation)
+            ^ self.sandwich(center, circle_point_3_translation)
+        )
+
+    def circle_from_non_colinear_points(self, point_1, point_2, point_3):
+        return point_1 ^ point_2 ^ point_3
+
+    def plane_from_non_colinear_points(self, point_1, point_2, point_3):
+        return point_1 ^ point_2 ^ point_3 ^ self.e_inf

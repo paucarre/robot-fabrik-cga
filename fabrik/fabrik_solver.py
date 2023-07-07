@@ -1,9 +1,7 @@
 from fabrik.cga import ConformalGeometricAlgebra
-from fabrik.kinematics import UrdfRobotLibrary
 from pytransform3d.transformations import (
     invert_transform,
 )
-from fabrik.kinematics import zero_pose
 import numpy as np
 from dataclasses import dataclass
 
@@ -13,10 +11,11 @@ class PoseSample:
     axis_index: int
     pose_origin_s: np.array
     pose_axis_s: np.array
+    parameter_axis_index: int
     parameter_value: float
 
 
-class FabrikRoboticsSolver(object):
+class FabrikSolver(object):
     def __init__(self):
         self.cga = ConformalGeometricAlgebra()
         self.resolution = 1e-10
@@ -65,6 +64,11 @@ class FabrikRoboticsSolver(object):
             @ target_pose
         )
 
+    def circle_from_three_poses(self, poses):
+        points = [self.cga.to_point(pose) for pose in poses]
+        self.cga.circle_from_non_colinear_points(*points)
+        ~self.cga.plane_from_non_colinear_points(*points)
+
     def end_effector_to_target(
         self, open_chains, parameters, parameter_values, axis_index, target_pose
     ):
@@ -92,62 +96,26 @@ class FabrikRoboticsSolver(object):
                 target orientation. We want to know where "axis_index - 2"
                 position is given changes in "axis_index" parameter
                 guaranteeing target pose which locks in place 
-                "axis_index" and "axis_index - 1" 
+                "axis_index" and "axis_index - 1"
+            Note that the `current_parameters` might not be affected 
+            by the `axis_index` as it will be further within the chain.
+            The transformation is affected by the value in `axis_index`
+            as the initial pose (`pose_origin_s`) is dependant on it. 
             """
             pre_pre_chain = open_chains[axis_index - 2]
             pose_pre_axis_s = (
-                pre_pre_chain.forward_transformation(current_parameters)
-                @ pose_origin_s
+                pre_pre_chain.forward_transformation(current_parameters) @ pose_origin_s
             )
             pose_sample = PoseSample(
-                axis_index, pose_origin_s, pose_pre_axis_s, parameter_value
+                axis_index - 2,
+                pose_origin_s,
+                pose_pre_axis_s,
+                axis_index,
+                parameter_value,
             )
             pose_samples.append(pose_sample)
         return pose_samples
 
 
 if __name__ == "__main__":
-    urdf_robot = UrdfRobotLibrary.dobot_cr5()
-    open_chains = urdf_robot.extract_open_chains(0.1)
-    zeros = [0.0] * len(open_chains[-1])
-    target_pose = open_chains[-1].forward_transformation(zeros) @ zero_pose()
-    fabrik_solver = FabrikRoboticsSolver()
-    low_limit = open_chains[-1].joint_limits[-1][0]
-    high_limit = open_chains[-1].joint_limits[-1][1]
-    mid_limit = low_limit + (0.9 * (high_limit - low_limit) / 2.0)
-    values = [mid_limit]
-    end_effector_axis_index = len(open_chains[-1]) - 1
-    pose_samples = fabrik_solver.end_effector_to_target(
-        open_chains, zeros, values, end_effector_axis_index, target_pose
-    )
-    """
-    The test verifies the following:
-    with the last parameter as the parameter_value
-    and starting at pose pose_origin_s"
-      - The end effector pose is the target pose
-      - The pose at the axis before the last one ( 
-       "the last axis moves the previous one"
-      ) has pose pose_pre_pre_end_effector_s
-    
-    """
-    """
-    Verify that the end effector pose is the target pose
-    """
-    parameters = [0.0] * len(open_chains[-1])
-    parameters[-1] = pose_samples[0].parameter_value
-    end_effector_pose = (
-        open_chains[-1].forward_transformation(parameters)
-        @ pose_samples[0].pose_origin_s
-    )
-    print(end_effector_pose - target_pose)
-    print(
-        np.isclose(
-            np.array(end_effector_pose), np.array(target_pose), rtol=1e-05, atol=1e-05
-        ).all()
-    )
-    # print(pose_origin_s, pose_pre_pre_end_effector_s, parameter_value)
-    """
-    - The pose at the axis before the last one ( 
-        "the last axis moves the previous one"
-        ) has pose pose_pre_pre_end_effector_s
-    """
+    pass
