@@ -149,6 +149,46 @@ class TestConformalGeometricAlgebra(unittest.TestCase):
             abs(cga.vector_norm(expected_normal - cga.normal_from_plane(plane))) < 0.01
         )
 
+    def test_plane_from_two_vectors_and_point(self):
+        point_1 = cga.point(0.0, 0.0, 1.0)
+        point_2 = cga.point(1.0, 0.0, 1.0)
+        point_3 = cga.point(0.0, 1.0, 1.1)
+        expected_plane = cga.plane_from_non_colinear_points(point_1, point_2, point_3)
+        vector1 = cga.to_vector(point_2) - cga.to_vector(point_1)
+        vector2 = cga.to_vector(point_3) - cga.to_vector(point_1)
+        plane = cga.plane_from_two_vectors_and_point(vector1, vector2, point_1)
+        self.assertTrue(cga.vector_norm(expected_plane - plane) < 1e-5)
+
+    def test_dipole_circle_plane_intersection(self):
+        point_1 = cga.point(0.0, 0.0, 1.0)
+        point_2 = cga.point(1.0, 0.0, 1.0)
+        point_3 = cga.point(0.0, 1.0, 1.1)
+        points = [point_1, point_2, point_3]
+        #points = [cga.point(*position.tolist()) for position in positions]
+        circle = cga.circle_from_non_colinear_points(*points)
+        vector_normal_to_circle = cga.normal_from_plane(
+            cga.plane_from_non_colinear_points(*points)
+        )
+        pose_target = cga.point(100.0, 200.0, 20.0)
+        vector_from_pose_target = cga.to_vector(pose_target)
+        plane = cga.plane_from_two_vectors_and_point(
+            vector_normal_to_circle, vector_from_pose_target, cga.e_origin
+        )
+        expected_dual_point = circle.meet(plane)
+        dual_point = cga.dipole_circle_plane_intersection(circle, plane)
+        expected_center_position1, expected_center_position2 = cga.project(expected_dual_point)
+        center_position1, center_position2 = cga.project(dual_point)
+        print(
+            cga.to_vector(expected_center_position1),
+            "project",
+            cga.to_vector(expected_center_position2),
+        )
+        print(
+            cga.to_vector(center_position1),
+            "project",
+            cga.to_vector(center_position2),
+        )
+        #self.assertTrue(cga.vector_norm(expected_dual_point - dual_point) < 1e-5)
 
 """
     def test_distance_between_line_and_point(self):

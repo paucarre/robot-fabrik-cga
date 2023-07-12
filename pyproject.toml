@@ -13,12 +13,15 @@ coverage = "7.2.7"
 black = "^23.3.0"
 pytest = "^7.3.2"
 pytest-coverage = "^0.0"
-pytransform3d = "^3.2.0"
 pyqt5 = "^5.15.9"
 trimesh = "^3.22.1"
 pycollada = "^0.7.2"
 pydot = "^1.4.2"
 autoflake = "^2.2.0"
+fvcore = "^0.1.5.post20221221"
+iopath = "^0.1.10"
+torchvision = "^0.15.2"
+torchaudio = "^2.0.2"
 
 [build-system]
 requires = ["poetry-core"]
@@ -27,4 +30,3 @@ build-backend = "poetry.core.masonry.api"
 [[tool.poetry.source]]
 name = "PyPI"
 priority = "primary"
-

@@ -4,6 +4,7 @@ from pytransform3d.transformations import (
 )
 import numpy as np
 from dataclasses import dataclass
+from fabrik.kinematics import UrdfRobotLibrary
 
 
 @dataclass
@@ -64,10 +65,52 @@ class FabrikSolver(object):
             @ target_pose
         )
 
-    def circle_from_three_poses(self, poses):
-        points = [self.cga.to_point(pose) for pose in poses]
-        self.cga.circle_from_non_colinear_points(*points)
-        ~self.cga.plane_from_non_colinear_points(*points)
+    def solve_closest_points(self, positions, pose_target):
+        points = [self.cga.point(*position.tolist()) for position in positions]
+        circle = self.cga.circle_from_non_colinear_points(*points)
+        vector_normal_to_circle = self.cga.normal_from_plane(
+            self.cga.plane_from_non_colinear_points(*points)
+        )
+        pose_target = self.cga.point(*pose_target.tolist())
+        vector_from_pose_target = self.cga.to_vector(pose_target)
+        plane = self.cga.plane_from_two_vectors_and_point(
+            vector_normal_to_circle, vector_from_pose_target, self.cga.e_origin
+        )
+        print("vector_normal_to_circle", vector_normal_to_circle)
+        print("vector_from_pose_target", vector_from_pose_target)
+        print("plane", self.cga.normal_from_plane(plane))
+        print("plane", self.cga.normal_from_plane(plane) | self.cga.e_origin)
+        print("plane", self.cga.normal_from_plane(plane) | points[0])
+        # print("computing meet")
+        dual_point = circle.meet(plane)
+        center_position1, center_position2 = self.cga.project(dual_point)
+        # NOTE: postions are w.r.t. the center of the circle as origin
+        print(
+            self.cga.to_vector(center_position1),
+            "project",
+            self.cga.to_vector(center_position2),
+        )
+        point1 = self.cga.sandwich(
+            pose_target, self.cga.translator(self.cga.to_vector(center_position1))
+        )
+        point2 = self.cga.sandwich(
+            pose_target, self.cga.translator(self.cga.to_vector(center_position2))
+        )
+        print(
+            self.cga.to_vector(point1),
+            "project",
+            self.cga.to_vector(point2),
+        )
+        point1_distance_to_origin = point1 | self.cga.e_inf
+        point2_distance_to_origin = point2 | self.cga.e_inf
+        print(point1_distance_to_origin)
+        print(point2_distance_to_origin)
+        #if point1_distance_to_origin < point2_distance_to_origin:
+        #    return point1_distance_to_origin
+        #else:
+        #    return point2_distance_to_origin
+        #print(self.cga.to_vector(point1), "intersection", self.cga.to_vector(point2))
+        #return point1
 
     def end_effector_to_target(
         self, open_chains, parameters, parameter_values, axis_index, target_pose
@@ -118,4 +161,16 @@ class FabrikSolver(object):
 
 
 if __name__ == "__main__":
-    pass
+    urdf_robot = UrdfRobotLibrary.dobot_cr5()
+    open_chains = urdf_robot.extract_open_chains(0.1)
+    fabrik_solver = FabrikSolver()
+    pose_target = np.array([200.0, 100.0, 0.0])
+    poses = np.array(
+        [
+            [20.0, 0.0, 0.0],
+            [0.0, 20.0, 0.0],
+            [0.0, -20.0, 0.0],
+        ]
+    )
+    solution = fabrik_solver.solve_closest_points(poses, pose_target)
+    print("solution", solution)

@@ -124,6 +124,82 @@ class ConformalGeometricAlgebra(object):
         z = -plane.lc(self.e ^ self.e1 ^ self.e2 ^ self.e_hat)
         return self.vector(x, y, z)
 
+    def plane_from_two_vectors_and_point(self, vector1, vector2, point):
+        point_vector1 = self.sandwich(point, self.translator(vector1))
+        point_vector2 = self.sandwich(point, self.translator(vector2))
+        return self.plane_from_non_colinear_points(point, point_vector1, point_vector2)
+
+    def dipole_circle_plane_intersection(self, circle, plane):
+        '''
+        Plane
+        https://conformalgeometricalgebra.org/wiki/index.php?title=Plane
+        g=
+            gxe4235+
+            gye4315+
+            gze4125+
+            gwe3215
+        '''
+        gx = plane.lc(self.e  ^ self.e2 ^ self.e3 ^ self.e_hat).as_array().sum()
+        gy = plane.lc(self.e  ^ self.e3 ^ self.e1 ^ self.e_hat).as_array().sum()
+        gz = plane.lc(self.e  ^ self.e1 ^ self.e2 ^ self.e_hat).as_array().sum()
+        gw = plane.lc(self.e3 ^ self.e2 ^ self.e1 ^ self.e_hat).as_array().sum()
+        '''
+        Circle
+        https://conformalgeometricalgebra.org/wiki/index.php?title=Circle
+        '''
+        '''
+        cgxe423+
+        cgye431+
+        cgze412+
+        cgwe321+
+        '''
+        cgx = circle.lc(self.e  ^ self.e2 ^ self.e3).as_array().sum()
+        cgy = circle.lc(self.e  ^ self.e3 ^ self.e1).as_array().sum()
+        cgz = circle.lc(self.e  ^ self.e1 ^ self.e2).as_array().sum()
+        cgw = circle.lc(self.e3 ^ self.e2 ^ self.e1).as_array().sum()
+        '''
+        cvxe415+
+        cvye425+
+        cvze435+
+        '''
+        cvx = circle.lc(self.e ^ self.e1 ^ self.e_hat).as_array().sum()
+        cvy = circle.lc(self.e ^ self.e2 ^ self.e_hat).as_array().sum()
+        cvz = circle.lc(self.e ^ self.e3 ^ self.e_hat).as_array().sum()
+        '''
+        cmxe235+
+        cmye315+
+        cmze125
+        '''
+        cmx = circle.lc(self.e2 ^ self.e3 ^ self.e_hat).as_array().sum()
+        cmy = circle.lc(self.e3 ^ self.e1 ^ self.e_hat).as_array().sum()
+        cmz = circle.lc(self.e1 ^ self.e2 ^ self.e_hat).as_array().sum()
+        '''
+        Clicle - Plane meet
+        https://conformalgeometricalgebra.org/wiki/index.php?title=Join_and_meet
+        g∨c=
+            (gycgz-gzcgy)e41+
+            (gzcgx-gxcgz)e42+
+            (gxcgy-gycgx)e43+
+            (gwcgx-gxcgw)e23+
+            (gwcgy-gycgw)e31+
+            (gwcgz-gzcgw)e12+
+            (gzcmy-gycmz+gwcvx)e15+
+            (gxcmz-gzcmx+gwcvy)e25+
+            (gycmx-gxcmy+gwcvz)e35-
+            (gxcvx+gycvy+gzcvz)e45
+        '''
+        meet =  ( (gy*cgz-gz*cgy) * (self.e  ^ self.e1) ) + \
+                ( (gz*cgx-gx*cgz) * (self.e  ^ self.e2) ) + \
+                ( (gx*cgy-gy*cgx) * (self.e  ^ self.e3) ) + \
+                ( (gw*cgx-gx*cgw) * (self.e2 ^ self.e3) ) + \
+                ( (gw*cgy-gy*cgw) * (self.e3 ^ self.e1) ) + \
+                ( (gw*cgz-gz*cgw) * (self.e1 ^ self.e2) ) + \
+                ( (gz*cmy-gy*cmz+gw*cvx) * (self.e1 ^ self.e_hat) ) + \
+                ( (gx*cmz-gz*cmx+gw*cvy) * (self.e2 ^ self.e_hat) ) + \
+                ( (gy*cmx-gx*cmy+gw*cvz) * (self.e3 ^ self.e_hat) ) - \
+                ( (gx*cvx+gy*cvy+gz*cvz) * (self.e  ^ self.e_hat) )
+        return meet
+
     """
     def distance_between_line_and_point(self, first_point, second_point, target_point):
         plane = first_point ^ second_point ^ target_point ^ self.e_inf
