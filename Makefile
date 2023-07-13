@@ -6,7 +6,7 @@ help:
 	@echo
 
 test:
-	poetry run pytest --cov-report term --cov=fabrik tests
+	poetry run pytest --cov-report term --cov=linguamechanica tests
 
 format:
 	poetry run black .

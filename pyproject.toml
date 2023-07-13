@@ -1,10 +1,10 @@
 [tool.poetry]
-name = "fabrik"
+name = "linguamechanica"
 version = "0.1.0"
 description = ""
 authors = ["Pau Carré Cardona <pau.carre@gmail.com>"]
 readme = "README.md"
-packages = [{include = "fabrik"}]
+packages = [{include = "linguamechanica"}]
 
 [tool.poetry.dependencies]
 python = "^3.10"

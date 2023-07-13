@@ -15,9 +15,10 @@ import matplotlib.pyplot as plt
 import torch
 from pytorch3d import transforms
 
+
 # TODO: use directly se(3) algebra and transform with adjoint
 def zero_pose():
-    return np.array([[1, 0, 0, 0], [0, 0, 0, 1]]).T
+    return torch.Tensor([[1, 0, 0, 0], [0, 0, 0, 1]]).transpose(0, 1)
 
 
 class DifferentiableOpenChainMechanism:
@@ -27,46 +28,28 @@ class DifferentiableOpenChainMechanism:
         self.joint_limits = joint_limits
 
     def forward_transformation(self, coordinates):
-        current_twist = self.screws * coordinates.unsqueeze(1)
-        transformations = transforms.se3_exp_map(current_twist)
-        #transformations = [
-        #    
-        #    for screw, coordinate in zip(self.screws, coordinates)
-        #]
-        ##print(transformations[0].transpose(1,2).squeeze().numpy())
-        ##print(transformations[1].transpose(1,2).squeeze().numpy())
-        ##print("matmul")
-        ##print(transformations[0].transpose(1,2).squeeze().numpy() @ transformations[1].transpose(1,2).squeeze().numpy())
-        num_transformations = transformations.shape[0]
-        computed_transform = torch.eye(4).unsqueeze(0)
-        for i in range(num_transformations):
-            computed_transform = torch.bmm(transformations[i].unsqueeze(0), computed_transform)
-        return  computed_transform @ self.initial_matrix
-
-    def __len__(self):
-        return len(self.screws)
-
-    def __getitem__(self, i):
-        return self.screws[i]
-
-
-class OpenChainMechanism:
-    def __init__(self, screws, initial_matrix, joint_limits):
-        self.screws = screws
-        self.initial_matrix = initial_matrix
-        self.joint_limits = joint_limits
-
-    def forward_transformation(self, coordinates):
-        transformations = [
-            transform_from_exponential_coordinates(screw * coordinate)
-            for screw, coordinate in zip(self.screws, coordinates)
-        ]
-        transformations = reduce(
-            lambda transform, computed_transform: concat(computed_transform, transform),
-            transformations,
-            np.eye(4),
+        twist = self.screws * coordinates.unsqueeze(2)
+        original_shape = twist.shape
+        transformations = transforms.se3_exp_map(twist.view(-1, original_shape[2]))
+        transformations = transformations.view(
+            original_shape[0],
+            original_shape[1],
+            transformations.shape[1],
+            transformations.shape[2],
         )
-        return concat(self.initial_matrix, transformations)
+        # Note: I have no idea why columns and rows are swapped, but they are!
+        transformations = transformations.transpose(2, 3)
+        chains_lenght = transformations.shape[1]
+        num_chains = transformations.shape[0]
+        computed_transforms = torch.eye(4).unsqueeze(0).repeat(num_chains, 1, 1)
+        for chain_idx in range(chains_lenght):
+            computed_transforms = torch.bmm(
+                computed_transforms, transformations[:, chain_idx, :, :]
+            )
+        return torch.bmm(
+            computed_transforms,
+            self.initial_matrix.unsqueeze(0).repeat(num_chains, 1, 1),
+        )
 
     def __len__(self):
         return len(self.screws)
@@ -128,16 +111,24 @@ class UrdfRobot:
             # coordinates = vee ( log ( exponential ) )
             coordinates = exponential_coordinates_from_transform(exponential)
             screw = coordinates / epsillon
-            screws.append(screw)
-            open_chain = OpenChainMechanism(
-                screws.copy(), transform_zero, self.joint_limits[: i + 1]
+            screws.append(
+                np.expand_dims(np.concatenate([screw[3:], screw[:3]]), axis=0)
+            )
+            screw_torch = torch.Tensor(np.concatenate(screws.copy()))
+            initial_torch = torch.Tensor(transform_zero)
+            open_chain = DifferentiableOpenChainMechanism(
+                screw_torch, initial_torch, self.joint_limits[: i + 1]
             )
             open_chains.append(open_chain)
         return open_chains
 
     def transformations(self, values):
+        """
+        This method assumes values is a batch of one element
+        """
+        assert values.shape[0] == 1
         for i, joint_name in enumerate(self.joint_names):
-            self.transform_manager.set_joint(joint_name, values[i])
+            self.transform_manager.set_joint(joint_name, values[0][i])
         transform = np.eye(4)
         transformations = []
         for i in range(len(self.link_names) - 1):
