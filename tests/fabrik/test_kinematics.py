@@ -1,9 +1,39 @@
 import unittest
 import math
 import numpy as np
-from fabrik.kinematics import OpenChainMechanism, UrdfRobotLibrary
+from fabrik.kinematics import DifferentiableOpenChainMechanism, OpenChainMechanism, UrdfRobotLibrary
 import random
+import torch
 
+class TestDifferentiableOpenChainMechanism(unittest.TestCase):
+    def test_forward_transformation_translation_rotation(self):
+        screws = torch.Tensor([[0, 0, 1.0, 0, 0, 0.0], [0.0, 0, 0, 1.0, 0, 0]])
+        # translate 10 meters in z and rotate around x PI rads
+        coords = torch.Tensor([10.0, np.pi])
+        
+        screws = torch.Tensor([[0, 0, 0.0, 1.0, 0.0, 0.0], [1.0, 0, 0, 0.0, 0, 0]])
+        # rotate 90 degrees around x and then translating towards y ( which is x wrt the original frame)
+        coords = torch.Tensor([math.pi / 2.0, 10.0])
+
+        open_chain = DifferentiableOpenChainMechanism(
+            screws, torch.eye(4), [(0, 100.0), (0, math.pi * 2)]
+        )
+        matrix = open_chain.forward_transformation(coords)
+        expected_matrix = np.array(
+            [
+                [1, 0, 0, 0],
+                [0, math.cos(math.pi), -math.sin(math.pi), 0],
+                [0, math.sin(math.pi), math.cos(math.pi), 10.0],
+                [0, 0, 0, 1],
+            ]
+        )
+        print(matrix.squeeze().transpose(0,1))
+        self.assertTrue(np.isclose(
+                    expected_matrix,
+                    matrix.squeeze().transpose(0,1),
+                    rtol=1e-05,
+                    atol=1e-05,
+                ).all())
 
 class TestOpenChainMechanism(unittest.TestCase):
     def test_forward_transformation_translation_rotation(self):

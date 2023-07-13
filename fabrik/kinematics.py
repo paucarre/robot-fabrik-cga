@@ -12,11 +12,42 @@ from pytransform3d.urdf import (
 )
 from functools import reduce
 import matplotlib.pyplot as plt
-
+import torch
+from pytorch3d import transforms
 
 # TODO: use directly se(3) algebra and transform with adjoint
 def zero_pose():
     return np.array([[1, 0, 0, 0], [0, 0, 0, 1]]).T
+
+
+class DifferentiableOpenChainMechanism:
+    def __init__(self, screws, initial_matrix, joint_limits):
+        self.screws = screws
+        self.initial_matrix = initial_matrix
+        self.joint_limits = joint_limits
+
+    def forward_transformation(self, coordinates):
+        current_twist = self.screws * coordinates.unsqueeze(1)
+        transformations = transforms.se3_exp_map(current_twist)
+        #transformations = [
+        #    
+        #    for screw, coordinate in zip(self.screws, coordinates)
+        #]
+        ##print(transformations[0].transpose(1,2).squeeze().numpy())
+        ##print(transformations[1].transpose(1,2).squeeze().numpy())
+        ##print("matmul")
+        ##print(transformations[0].transpose(1,2).squeeze().numpy() @ transformations[1].transpose(1,2).squeeze().numpy())
+        num_transformations = transformations.shape[0]
+        computed_transform = torch.eye(4).unsqueeze(0)
+        for i in range(num_transformations):
+            computed_transform = torch.bmm(transformations[i].unsqueeze(0), computed_transform)
+        return  computed_transform @ self.initial_matrix
+
+    def __len__(self):
+        return len(self.screws)
+
+    def __getitem__(self, i):
+        return self.screws[i]
 
 
 class OpenChainMechanism:
