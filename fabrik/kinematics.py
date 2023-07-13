@@ -27,21 +27,19 @@ class DifferentiableOpenChainMechanism:
         self.joint_limits = joint_limits
 
     def forward_transformation(self, coordinates):
-        current_twist = self.screws * coordinates.unsqueeze(1)
-        transformations = transforms.se3_exp_map(current_twist)
-        #transformations = [
-        #    
-        #    for screw, coordinate in zip(self.screws, coordinates)
-        #]
-        ##print(transformations[0].transpose(1,2).squeeze().numpy())
-        ##print(transformations[1].transpose(1,2).squeeze().numpy())
-        ##print("matmul")
-        ##print(transformations[0].transpose(1,2).squeeze().numpy() @ transformations[1].transpose(1,2).squeeze().numpy())
-        num_transformations = transformations.shape[0]
-        computed_transform = torch.eye(4).unsqueeze(0)
-        for i in range(num_transformations):
-            computed_transform = torch.bmm(transformations[i].unsqueeze(0), computed_transform)
-        return  computed_transform @ self.initial_matrix
+        twist = self.screws * coordinates.unsqueeze(2)
+        original_shape = twist.shape
+        transformations = transforms.se3_exp_map(twist.view(-1, original_shape[2]))
+        transformations = transformations.view(original_shape[0], original_shape[1], 
+            transformations.shape[1], transformations.shape[2])
+        # Note: I have no idea why columns and rows are swapped, but they are!
+        transformations = transformations.transpose(2, 3)
+        chains_lenght = transformations.shape[1]
+        num_chains = transformations.shape[0]
+        computed_transforms = torch.eye(4).unsqueeze(0).repeat(num_chains, 1, 1)
+        for chain_idx in range(chains_lenght):
+            computed_transforms = torch.bmm(computed_transforms, transformations[:, chain_idx, :, :])
+        return  torch.bmm(computed_transforms, self.initial_matrix.unsqueeze(0).repeat(num_chains, 1, 1))
 
     def __len__(self):
         return len(self.screws)
