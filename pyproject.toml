@@ -8,11 +8,9 @@ packages = [{include = "linguamechanica"}]
 
 [tool.poetry.dependencies]
 python = "^3.10"
-clifford = "^1.4.0"
 coverage = "7.2.7"
 black = "^23.3.0"
 pytest = "^7.3.2"
-pytest-coverage = "^0.0"
 pyqt5 = "^5.15.9"
 trimesh = "^3.22.1"
 pycollada = "^0.7.2"
@@ -34,9 +32,9 @@ pytorch3d = [
     {url = "https://dl.fbaipublicfiles.com/pytorch3d/packaging/wheels/py310_cu113_pyt1110/pytorch3d-0.7.2-cp310-cp310-linux_x86_64.whl", platform = "linux", python = ">=3.10 <3.11"},
 ]
 pytransform3d = "^3.2.0"
-opencv-python = "^4.8.0.74"
 gymnasium = {extras = ["accept-rom-license", "atari"], version = "^0.28.1"}
 gym = "^0.26.2"
+pytest-coverage = "^0.0"
 
 
 [build-system]
