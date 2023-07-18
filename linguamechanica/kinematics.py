@@ -1,7 +1,5 @@
 import numpy as np
 from pytransform3d.transformations import (
-    concat,
-    transform_from_exponential_coordinates,
     exponential_coordinates_from_transform,
     invert_transform,
 )
@@ -10,13 +8,15 @@ from pytransform3d.urdf import (
     parse_urdf,
     initialize_urdf_transform_manager,
 )
-from functools import reduce
 import matplotlib.pyplot as plt
 import torch
 from pytorch3d import transforms
 
+"""
+TODO: remove if never used
+"""
 
-# TODO: use directly se(3) algebra and transform with adjoint
+
 def zero_pose():
     return torch.Tensor([[1, 0, 0, 0], [0, 0, 0, 1]]).transpose(0, 1)
 
@@ -165,17 +165,6 @@ class UrdfRobotLibrary:
             urdf_data, mesh_path="./urdf/", package_dir="./urdf/", strict_check=True
         )
         return UrdfRobot(name, links, joints)
-
-
-class Mechanisms:
-    def robot_3r(l1, l2):
-        screws = np.array(
-            [[0, 0, 1, 0, 0, 0], [0, -1, 0, 0, 0, -l1], [1, 0, 0, 0, l2, 0]]
-        )
-        initial_matrix = np.array(
-            [[0, 0, 1, l1], [0, 1, 0, 0], [-1, 0, 0, -l2], [0, 0, 0, 1]]
-        )
-        return OpenChainMechanism(screws, initial_matrix)
 
 
 if __name__ == "__main__":

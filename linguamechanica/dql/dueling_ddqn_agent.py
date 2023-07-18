@@ -1,7 +1,7 @@
 import numpy as np
 import torch as T
-from deep_q_network import DuelingDeepQNetwork
-from replay_memory import ReplayBuffer
+from linguamechanica.dql.deep_q_network import DuelingDeepQNetwork
+from linguamechanica.dql.replay_memory import ReplayBuffer
 
 
 class DuelingDDQNAgent(object):
@@ -11,7 +11,7 @@ class DuelingDDQNAgent(object):
         epsilon,
         lr,
         n_actions,
-        input_dims,
+        state_dims,
         mem_size,
         batch_size,
         eps_min=0.01,
@@ -25,7 +25,7 @@ class DuelingDDQNAgent(object):
         self.epsilon = epsilon
         self.lr = lr
         self.n_actions = n_actions
-        self.input_dims = input_dims
+        self.state_dims = state_dims
         self.batch_size = batch_size
         self.eps_min = eps_min
         self.eps_dec = eps_dec
@@ -33,22 +33,23 @@ class DuelingDDQNAgent(object):
         self.algo = algo
         self.env_name = env_name
         self.chkpt_dir = chkpt_dir
-        self.action_space = [i for i in range(n_actions)]
+        #self.action_space = [i for i in range(n_actions)]
+        self.action_range = (-1.0, 1.0)
         self.learn_step_counter = 0
 
-        self.memory = ReplayBuffer(mem_size, input_dims, n_actions)
+        self.memory = ReplayBuffer(mem_size, state_dims, n_actions)
 
         self.q_eval = DuelingDeepQNetwork(
             self.lr,
             self.n_actions,
-            input_dims=self.input_dims,
+            state_dims=self.state_dims,
             name=self.env_name + "_" + self.algo + "_q_eval",
             chkpt_dir=self.chkpt_dir,
         )
         self.q_next = DuelingDeepQNetwork(
             self.lr,
             self.n_actions,
-            input_dims=self.input_dims,
+            state_dims=self.state_dims,
             name=self.env_name + "_" + self.algo + "_q_next",
             chkpt_dir=self.chkpt_dir,
         )
@@ -75,9 +76,12 @@ class DuelingDDQNAgent(object):
             state_tensor = T.tensor(state).to(self.q_eval.device)
             _, advantages = self.q_eval.forward(state_tensor)
 
-            action = T.argmax(advantages).item()
+            #action = T.argmax(advantages).item()
+            action = advantages[0, 0].item()
+            #print(f"Using model action {action}, {advantages}")
         else:
-            action = np.random.choice(self.action_space)
+            action = np.random.uniform(*self.action_range) #np.random.choice(self.action_space)
+            #print(f"Using random action {action}")
 
         return action
 

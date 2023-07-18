@@ -3,7 +3,6 @@ import torch as T
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
-import numpy as np
 
 
 class DuelingDeepQNetwork(nn.Module):
@@ -13,14 +12,6 @@ class DuelingDeepQNetwork(nn.Module):
         self.checkpoint_dir = chkpt_dir
         self.checkpoint_file = os.path.join(self.checkpoint_dir, name)
 
-        """
-            State dims should be for now:
-                - Target pose, 6 
-                - Current parameters, 6
-                - Current parameter index, 1
-            Action size should be:
-                - Angle: sigmoid(x) - 0.5 or something similar
-        """
         state_size = sum(state_dims)
 
         self.fc1 = nn.Linear(state_size, 512)
@@ -36,7 +27,6 @@ class DuelingDeepQNetwork(nn.Module):
     def forward(self, state):
         flat1 = F.relu(self.fc1(state))
         flat2 = F.relu(self.fc2(flat1))
-
         V = self.V(flat2)
         A = self.A(flat2)
 
