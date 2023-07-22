@@ -110,9 +110,9 @@ class DuelingDDQNAgent(object):
         q_pred = T.add(V_s, (A_s - A_s.mean(dim=1, keepdim=True)))[indices, actions]
         q_next = T.add(V_s_, (A_s_ - A_s_.mean(dim=1, keepdim=True)))
         q_eval = T.add(V_s_eval, (A_s_eval - A_s_eval.mean(dim=1, keepdim=True)))
-        max_actions = T.argmax(q_eval, dim=1)
+        max_actions = q_eval #T.argmax(q_eval, dim=1)
         q_next[dones] = 0.0
-        q_target = rewards + self.gamma * q_next[indices, max_actions]
+        q_target = rewards + self.gamma * q_next[indices]#, max_actions]
         loss = self.q_eval.loss(q_target, q_pred).to(self.q_eval.device)
         loss.backward()
         self.q_eval.optimizer.step()
