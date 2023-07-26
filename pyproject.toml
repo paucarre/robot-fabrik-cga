@@ -35,6 +35,7 @@ pytransform3d = "^3.2.0"
 gymnasium = {extras = ["accept-rom-license", "atari"], version = "^0.28.1"}
 gym = "^0.26.2"
 pytest-coverage = "^0.0"
+torchrl = "^0.1.1"
 
 
 [build-system]

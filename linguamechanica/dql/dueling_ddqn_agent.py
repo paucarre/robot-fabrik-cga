@@ -33,7 +33,7 @@ class DuelingDDQNAgent(object):
         self.algo = algo
         self.env_name = env_name
         self.chkpt_dir = chkpt_dir
-        #self.action_space = [i for i in range(n_actions)]
+        # self.action_space = [i for i in range(n_actions)]
         self.action_range = (-1.0, 1.0)
         self.learn_step_counter = 0
 
@@ -76,12 +76,14 @@ class DuelingDDQNAgent(object):
             state_tensor = T.tensor(state).to(self.q_eval.device)
             _, advantages = self.q_eval.forward(state_tensor)
 
-            #action = T.argmax(advantages).item()
+            # action = T.argmax(advantages).item()
             action = advantages[0, 0].item()
-            #print(f"Using model action {action}, {advantages}")
+            # print(f"Using model action {action}, {advantages}")
         else:
-            action = np.random.uniform(*self.action_range) #np.random.choice(self.action_space)
-            #print(f"Using random action {action}")
+            action = np.random.uniform(
+                *self.action_range
+            )  # np.random.choice(self.action_space)
+            # print(f"Using random action {action}")
 
         return action
 
@@ -110,9 +112,9 @@ class DuelingDDQNAgent(object):
         q_pred = T.add(V_s, (A_s - A_s.mean(dim=1, keepdim=True)))[indices, actions]
         q_next = T.add(V_s_, (A_s_ - A_s_.mean(dim=1, keepdim=True)))
         q_eval = T.add(V_s_eval, (A_s_eval - A_s_eval.mean(dim=1, keepdim=True)))
-        max_actions = q_eval #T.argmax(q_eval, dim=1)
+        max_actions = q_eval  # T.argmax(q_eval, dim=1)
         q_next[dones] = 0.0
-        q_target = rewards + self.gamma * q_next[indices]#, max_actions]
+        q_target = rewards + self.gamma * q_next[indices]  # , max_actions]
         loss = self.q_eval.loss(q_target, q_pred).to(self.q_eval.device)
         loss.backward()
         self.q_eval.optimizer.step()

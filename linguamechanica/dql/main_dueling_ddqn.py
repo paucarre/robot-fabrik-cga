@@ -62,22 +62,26 @@ class Environment:
         return observation
 
     def compute_reward(self):
-        target_pose  = transforms.Transform3d(matrix=transforms.se3_exp_map(self.target_parameters))
-        current_pose = transforms.Transform3d(matrix=transforms.se3_exp_map(self.current_parameters))
+        target_pose = transforms.Transform3d(
+            matrix=transforms.se3_exp_map(self.target_parameters)
+        )
+        current_pose = transforms.Transform3d(
+            matrix=transforms.se3_exp_map(self.current_parameters)
+        )
         pose_difference = target_pose.inverse().compose(current_pose)
-        #TODO: this needs reweighting of angles and distances
-        pose_distance = pose_difference.get_se3_log().abs().sum() 
-        #TODO: this needs to be implemented properly
-        done = pose_distance < 1e-1 
+        # TODO: this needs reweighting of angles and distances
+        pose_distance = pose_difference.get_se3_log().abs().sum()
+        # TODO: this needs to be implemented properly
+        done = pose_distance < 1e-1
         return 1.0 / (1.0 + pose_distance), done
 
     def step(self, action):
-        #print(f"Action {action}, {self.current_parameter_index}")
+        # print(f"Action {action}, {self.current_parameter_index}")
         self.current_parameters[0, self.current_parameter_index] += action
         self.current_parameter_index = (self.current_parameter_index + 1) % len(
             self.open_chain
         )
-        #print(f"{self.target_parameters} | {self.current_parameters}")
+        # print(f"{self.target_parameters} | {self.current_parameters}")
         reward, done = self.compute_reward()
         return observation, reward, done
 
@@ -142,7 +146,7 @@ if __name__ == "__main__":
             observation = observation_
             n_steps += 1
             if n_steps % 100 == 0:
-                print(f"\t{n_steps} step | Reward {reward} | Score {score}") 
+                print(f"\t{n_steps} step | Reward {reward} | Score {score}")
         scores.append(score)
         steps_array.append(n_steps)
 
