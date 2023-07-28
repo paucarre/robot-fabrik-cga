@@ -5,6 +5,9 @@ from linguamechanica.environment import Environment
 from linguamechanica.agent import Agent
 from torchrl.data import ReplayBuffer
 from torch.utils.tensorboard import SummaryWriter
+import traceback
+import logging
+import pdb
 
 # Runs policy for X episodes and returns average reward
 # A fixed seed is used for the eval environment
@@ -37,9 +40,12 @@ def main():
     open_chains = urdf_robot.extract_open_chains(0.3)
     env = Environment(open_chains[-1])
     agent = Agent(
-        lr=0.00000001,
+        lr=0.000001,
         state_dims=(env.observation_space.shape),
         action_dims=env.action_dims,
+        gamma=0.99,
+        policy_freq=4,
+        tau=0.005,
     )
     evaluations = [eval_policy(agent)]
     state, done = env.reset(), False
@@ -49,7 +55,6 @@ def main():
     eval_freq = 200
     max_timesteps = 1e6
     start_timesteps = 2000
-    max_action = 0.1
     batch_size = 32
     for t in range(int(max_timesteps)):
         episode_timesteps += 1
@@ -102,5 +107,10 @@ def main():
             # if args.save_model: policy.save(f"./models/{file_name}")
     tensorbard_summary.close()
 
+
 if __name__ == "__main__":
-    main()
+    try:
+        pdb.set_trace() 
+        main()
+    except:
+        logging.error(traceback.format_exc())

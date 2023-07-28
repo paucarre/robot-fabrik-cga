@@ -11,20 +11,26 @@ class Agent:
         lr,
         state_dims,
         action_dims,
+        gamma=0.99,
+        policy_freq=4,
+        tau=0.005,
+        max_action=0.1,
+        min_variance=0.001,
+        max_variance=0.01,
+        noise_clip=0.1,
+        policy_noise=0.01,
         fc1_dims=256,
         fc2_dims=256,
-        gamma=0.99,
-        mem_size=50000,
     ):
         self.gamma = gamma
         self.lr = lr
         self.fc1_dims = fc1_dims
         self.fc2_dims = fc2_dims
-        self.max_action = 0.1
-        self.min_variance = 0.001
-        self.max_variance = 0.01
-        self.noise_clip = 0.1
-        self.policy_noise = 0.01
+        self.max_action = max_action
+        self.min_variance = min_variance
+        self.max_variance = max_variance
+        self.noise_clip = noise_clip
+        self.policy_noise = policy_noise
         self.actor = Actor(
             self.max_action,
             self.min_variance,
@@ -49,8 +55,8 @@ class Agent:
         self.critic_target = Critic(lr, state_dims, action_dims).to(self.actor.device)
         self.memory = ReplayBuffer()
         self.total_it = 0
-        self.policy_freq = 2
-        self.tau = 0.005
+        self.policy_freq = policy_freq
+        self.tau = tau
 
     def store_transition(self, state, action, reward, state_, done):
         self.memory.store_transition(state, action, reward, state_, done)
@@ -98,8 +104,8 @@ class Agent:
 
             # Compute the target Q value
             target_Q1, target_Q2 = self.critic_target(next_state, next_action)
-            target_Q = (
-                reward + ( not_done * self.gamma * torch.min(target_Q1, target_Q2) )
+            target_Q = reward + (
+                not_done * self.gamma * torch.min(target_Q1, target_Q2)
             )
         # Optimize the critic
         self.critic.optimizer.zero_grad()
