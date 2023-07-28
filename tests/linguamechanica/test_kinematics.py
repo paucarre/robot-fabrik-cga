@@ -4,6 +4,7 @@ import numpy as np
 from linguamechanica.kinematics import (
     DifferentiableOpenChainMechanism,
     UrdfRobotLibrary,
+    to_left_multiplied,
 )
 import random
 import torch
@@ -65,8 +66,8 @@ class TestDifferentiableOpenChainMechanism(unittest.TestCase):
             expected_matrix[i, :, :] = expected_matrix[i, :, :] @ initial[:, :]
         self.assertTrue(
             np.isclose(
-                expected_matrix.numpy(),
-                matrix.numpy(),
+                to_left_multiplied(expected_matrix),
+                matrix.get_matrix(),
                 rtol=1e-05,
                 atol=1e-05,
             ).all()
@@ -88,9 +89,16 @@ class UrdfRobot(unittest.TestCase):
             coordinates = torch.Tensor(coordinates).unsqueeze(0)
             transformations = urdf_robot.transformations(coordinates)
             for i, transformation in enumerate(transformations):
-                computed = open_chains[i].forward_transformation(
-                    coordinates[:, : i + 1]
+                computed = (
+                    open_chains[i]
+                    .forward_transformation(coordinates[:, : i + 1])
+                    .get_matrix()
                 )
                 self.assertTrue(
-                    np.isclose(computed, transformation, rtol=1e-05, atol=1e-05).all()
+                    np.isclose(
+                        computed.squeeze(),
+                        to_left_multiplied(torch.Tensor(transformation)),
+                        rtol=1e-05,
+                        atol=1e-05,
+                    ).all()
                 )

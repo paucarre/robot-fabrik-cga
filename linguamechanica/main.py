@@ -9,6 +9,7 @@ import traceback
 import logging
 import pdb
 
+
 # Runs policy for X episodes and returns average reward
 # A fixed seed is used for the eval environment
 def eval_policy(agent, eval_episodes=10):
@@ -110,7 +111,7 @@ def main():
 
 if __name__ == "__main__":
     try:
-        pdb.set_trace() 
+        pdb.set_trace()
         main()
     except:
         logging.error(traceback.format_exc())

@@ -21,35 +21,59 @@ def zero_pose():
     return torch.Tensor([[1, 0, 0, 0], [0, 0, 0, 1]]).transpose(0, 1)
 
 
+def to_left_multiplied(right_multiplied):
+    """
+     Converts matrix from right multiplied ( most common notation for SE3 )
+     to left multiplied, which is the representation used in Pytorch 3D:
+     M = [
+        [Rxx, Ryx, Rzx, 0],
+        [Rxy, Ryy, Rzy, 0],
+        [Rxz, Ryz, Rzz, 0],
+        [Tx,  Ty,  Tz,  1],
+    ]
+    """
+    shape = right_multiplied.shape
+    left_multiplied = right_multiplied.clone()
+    if len(shape) == 3:
+        left_multiplied = left_multiplied.transpose(1, 2)
+        left_multiplied[:, 0:3, 0:3] = right_multiplied[:, 0:3, 0:3].transpose(1, 2)
+    elif len(shape) == 2:
+        left_multiplied = left_multiplied.transpose(0, 1)
+        left_multiplied[0:3, 0:3] = right_multiplied[0:3, 0:3].transpose(0, 1)
+    return left_multiplied
+
+
 class DifferentiableOpenChainMechanism:
     def __init__(self, screws, initial_matrix, joint_limits):
         self.screws = screws
-        self.initial_matrix = initial_matrix
+        self.initial_matrix = to_left_multiplied(initial_matrix)
         self.joint_limits = joint_limits
 
     def forward_transformation(self, coordinates):
         twist = self.screws * coordinates.unsqueeze(2)
         original_shape = twist.shape
-        transformations = transforms.se3_exp_map(twist.view(-1, original_shape[2]))
+        twist = twist.view(-1, original_shape[2])
+        transformations = transforms.se3_exp_map(twist)
         transformations = transformations.view(
             original_shape[0],
             original_shape[1],
             transformations.shape[1],
             transformations.shape[2],
         )
-        # Note: I have no idea why columns and rows are swapped, but they are!
-        transformations = transformations.transpose(2, 3)
         chains_lenght = transformations.shape[1]
         num_chains = transformations.shape[0]
-        computed_transforms = torch.eye(4).unsqueeze(0).repeat(num_chains, 1, 1)
-        for chain_idx in range(chains_lenght):
-            computed_transforms = torch.bmm(
-                computed_transforms, transformations[:, chain_idx, :, :]
-            )
-        return torch.bmm(
-            computed_transforms,
-            self.initial_matrix.unsqueeze(0).repeat(num_chains, 1, 1),
+        computed_transforms = transforms.Transform3d(
+            matrix=torch.eye(4).unsqueeze(0).repeat(num_chains, 1, 1)
         )
+        for chain_idx in range(chains_lenght):
+            chain_transformations = transforms.Transform3d(
+                matrix=transformations[:, chain_idx, :, :]
+            )
+            computed_transforms = chain_transformations.compose(computed_transforms)
+        initial_matrix = transforms.Transform3d(
+            matrix=self.initial_matrix.unsqueeze(0).repeat(num_chains, 1, 1)
+        )
+        return initial_matrix.compose(computed_transforms)
 
     def __len__(self):
         return len(self.screws)
