@@ -46,7 +46,6 @@ def main():
         policy_freq=4,
         tau=0.005,
     )
-    evaluations = [eval_policy(agent)]
     state, done = env.reset(), False
     episode_reward = 0
     episode_timesteps = 0
@@ -82,10 +81,10 @@ def main():
         # Train agent after collecting sufficient data
         if t >= start_timesteps:
             agent.train_buffer(batch_size)
-        '''
+        """
             LOGGING
             TODO: move this in its own method
-        '''
+        """
         if done and t >= start_timesteps:
             # +1 to account for 0 indexing. +0 on ep_timesteps since it will increment +1 even if done=True
             print(
@@ -104,12 +103,8 @@ def main():
             episode_num += 1
         # Evaluate episode
         if (t + 1) % eval_freq == 0:
-            average_reward = eval_policy(agent, 2)
-            evaluations.append(average_reward)
-            # np.save(f"./results/{file_name}", evaluations)
+            eval_policy(agent, 2)
             # if args.save_model: policy.save(f"./models/{file_name}")
-
-        
 
     tensorbard_summary.close()
 
