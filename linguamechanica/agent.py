@@ -53,13 +53,13 @@ class Agent:
             fc2_dims,
         )
         self.critic_target = Critic(lr, state_dims, action_dims).to(self.actor.device)
-        self.memory = ReplayBuffer()
+        self.replay_buffer = ReplayBuffer()
         self.total_it = 0
         self.policy_freq = policy_freq
         self.tau = tau
 
-    def store_transition(self, state, action, reward, state_, done):
-        self.memory.store_transition(state, action, reward, state_, done)
+    def store_transition(self, state, action, reward, next_state, done):
+        self.replay_buffer.add([state, action, reward, next_state, done])
 
     def compute_log_prob(self, mu_v, var_v, actions_v):
         log_prob_part_1 = ((mu_v - actions_v) ** 2) / (2 * var_v.clamp(min=1e-3))
@@ -83,15 +83,15 @@ class Agent:
         log_prob = self.compute_log_prob(mu_v, var_v, actions_v)
         return actions_v, log_prob
 
-    def train_buffer(self, replay_buffer, batch_size=256):
+    def train_buffer(self, batch_size=256):
         self.total_it += 1
-        state, action, next_state, reward, not_done = replay_buffer.sample(batch_size)
+        state, action, reward, next_state, done = self.replay_buffer.sample(batch_size)
 
         action = action.to(self.actor.device)
         state = state.to(self.actor.device)
         next_state = next_state.to(self.actor.device)
         reward = reward.to(self.actor.device).unsqueeze(1)
-        not_done = not_done.to(self.actor.device)
+        done = done.to(self.actor.device)
 
         with torch.no_grad():
             # Select action according to policy and add clipped noise
@@ -105,7 +105,7 @@ class Agent:
             # Compute the target Q value
             target_Q1, target_Q2 = self.critic_target(next_state, next_action)
             target_Q = reward + (
-                not_done * self.gamma * torch.min(target_Q1, target_Q2)
+                (1.0 - done) * self.gamma * torch.min(target_Q1, target_Q2)
             )
         # Optimize the critic
         self.critic.optimizer.zero_grad()

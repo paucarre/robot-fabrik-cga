@@ -54,6 +54,17 @@ class DifferentiableOpenChainMechanism:
         original_shape = twist.shape
         twist = twist.view(-1, original_shape[2])
         transformations = transforms.se3_exp_map(twist)
+        '''
+        Transformations will have indices of this type:
+        [
+            => The i-th index of the chain
+            => The j-th chain ( it can be the same robot 
+              with another pose or differnt robots 
+              so long they have the same number of degres of freedom)
+            => 4 rows of the left-transformation matrix
+            => 4 columns of the left-transformation matrix
+        ]
+        '''
         transformations = transformations.view(
             original_shape[0],
             original_shape[1],
@@ -66,10 +77,10 @@ class DifferentiableOpenChainMechanism:
             matrix=torch.eye(4).unsqueeze(0).repeat(num_chains, 1, 1)
         )
         for chain_idx in range(chains_lenght):
-            chain_transformations = transforms.Transform3d(
+            current_transformations = transforms.Transform3d(
                 matrix=transformations[:, chain_idx, :, :]
             )
-            computed_transforms = chain_transformations.compose(computed_transforms)
+            computed_transforms = current_transformations.compose(computed_transforms)
         initial_matrix = transforms.Transform3d(
             matrix=self.initial_matrix.unsqueeze(0).repeat(num_chains, 1, 1)
         )

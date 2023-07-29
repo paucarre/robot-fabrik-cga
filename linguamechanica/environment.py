@@ -32,16 +32,16 @@ class Environment:
             )
         return torch.Tensor(coordinates).unsqueeze(0)
 
-    def observation_to_numpy(self, observation):
-        observation_np = np.zeros(*self.observation_space.shape, dtype=np.float32)
-        observation_np[:6] = observation["target_pose"]
+    def observation_to_tensor(self, observation):
+        observation_tensor = torch.zeros(self.observation_space.shape)
+        observation_tensor[:6] = observation["target_pose"].detach().cpu()
         # TODO: test if this is key for backpropagation on manifold.
         # It should be a pytorch tensor and undetached
-        observation_np[6:12] = observation["current_pose"].detach().numpy()
+        observation_tensor[6:12] = observation["current_pose"].detach().cpu()
         # index = torch.Tensor(6)
         # index[observation["current_parameter_index"]] = 1.0
         # observation_np[12:] = index[:]
-        return observation_np
+        return observation_tensor
 
     def sample_random_action(self):
         # TODO: this is a bit silly for now
@@ -52,7 +52,7 @@ class Environment:
             self.current_parameters
         )
         self.current_pose = transforms.se3_log_map(
-            self.current_transformation.transpose(1, 2)
+            self.current_transformation.get_matrix()
         )
         self.current_parameter_index = 0
         observation = {
@@ -64,7 +64,7 @@ class Environment:
             "current_pose": self.current_pose,
             "current_parameter_index": self.current_parameter_index,
         }
-        observation = self.observation_to_numpy(observation)
+        observation = self.observation_to_tensor(observation)
         return observation
 
     def reset(self):
@@ -73,7 +73,7 @@ class Environment:
             self.target_parameters
         )
         self.target_pose = transforms.se3_log_map(
-            self.target_transformation.transpose(1, 2)
+            self.target_transformation.get_matrix()
         )
         self.current_parameters = self.uniformly_sample_parameters_within_constraints()
         observation = self.generate_observation()
@@ -87,7 +87,14 @@ class Environment:
         current_pose = transforms.Transform3d(
             matrix=transforms.se3_exp_map(self.current_parameters)
         )
-        pose_difference = target_pose.inverse().compose(current_pose)
+        '''
+        This means the pose of the current pose wrt the 
+        target pose.
+        Note that the `compose` method is left-application of
+        a left-matrix, meaning that it is equivalnet to:
+        `target_pose.inverse() @ current_pose`
+        '''
+        pose_difference = current_pose.compose(target_pose.inverse())
         # TODO: this needs reweighting of angles and distances
         pose_distance = pose_difference.get_se3_log().abs().sum()
         # TODO: this needs to be implemented properly

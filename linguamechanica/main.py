@@ -36,7 +36,6 @@ def eval_policy(agent, eval_episodes=10):
 def main():
     tensorbard_summary = SummaryWriter()
 
-    replay_buffer = ReplayBuffer()  # state_dim, action_dim)
     urdf_robot = UrdfRobotLibrary.dobot_cr5()
     open_chains = urdf_robot.extract_open_chains(0.3)
     env = Environment(open_chains[-1])
@@ -67,16 +66,15 @@ def main():
 
         # Perform action
         next_state, reward, done = env.step(action)
-        done_bool = float(done) if episode_timesteps < env.max_steps_done else 0
-
-        replay_buffer.add(
-            [
-                torch.Tensor(state).cpu(),
-                action[0, :].detach().cpu(),
-                torch.Tensor(next_state).cpu(),
-                reward.detach().cpu(),
-                torch.Tensor([done_bool]).cpu(),
-            ]
+        # TODO: I think this should be in the environment, I see no reason
+        # why this should be kept here
+        done = float(done) if episode_timesteps < env.max_steps_done else 1
+        agent.store_transition(
+                state=state.detach().cpu(),
+                action=action[0, :].detach().cpu(),
+                reward=reward.detach().cpu(),
+                next_state=next_state.detach().cpu(),
+                done=torch.Tensor([done]).detach().cpu(),
         )
 
         state = next_state
@@ -84,7 +82,7 @@ def main():
 
         # Train agent after collecting sufficient data
         if t >= start_timesteps:
-            agent.train_buffer(replay_buffer, batch_size)
+            agent.train_buffer(batch_size)
         if done and t >= start_timesteps:
             # +1 to account for 0 indexing. +0 on ep_timesteps since it will increment +1 even if done=True
             print(
