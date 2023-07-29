@@ -82,6 +82,20 @@ def main():
         # Train agent after collecting sufficient data
         if t >= start_timesteps:
             agent.train_buffer(batch_size)
+        '''
+            LOGGING
+            TODO: move this in its own method
+        '''
+        if done and t >= start_timesteps:
+            # +1 to account for 0 indexing. +0 on ep_timesteps since it will increment +1 even if done=True
+            print(
+                f"Total T: {t+1} Episode Num: {episode_num+1} Episode T: {episode_timesteps} Reward: {episode_reward:.3f}"
+            )
+            # Reset environment
+            tensorbard_summary.add_scalar("Reward/train", episode_reward, t)
+        if (t + 1) % eval_freq == 0 and t >= start_timesteps:
+            tensorbard_summary.add_scalar("Reward/evaluation", average_reward, t)
+
         if done:
             state = env.reset()
             done = False
@@ -95,16 +109,7 @@ def main():
             # np.save(f"./results/{file_name}", evaluations)
             # if args.save_model: policy.save(f"./models/{file_name}")
 
-        # Logging
-        if done and t >= start_timesteps:
-            # +1 to account for 0 indexing. +0 on ep_timesteps since it will increment +1 even if done=True
-            print(
-                f"Total T: {t+1} Episode Num: {episode_num+1} Episode T: {episode_timesteps} Reward: {episode_reward:.3f}"
-            )
-            # Reset environment
-            tensorbard_summary.add_scalar("Reward/train", episode_reward, t)
-        if (t + 1) % eval_freq == 0 and t >= start_timesteps:
-            tensorbard_summary.add_scalar("Reward/evaluation", average_reward, t)
+        
 
     tensorbard_summary.close()
 
