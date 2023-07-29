@@ -3,7 +3,6 @@ import torch
 from linguamechanica.kinematics import UrdfRobotLibrary
 from linguamechanica.environment import Environment
 from linguamechanica.agent import Agent
-from torchrl.data import ReplayBuffer
 from torch.utils.tensorboard import SummaryWriter
 import traceback
 import logging
@@ -70,11 +69,11 @@ def main():
         # why this should be kept here
         done = float(done) if episode_timesteps < env.max_steps_done else 1
         agent.store_transition(
-                state=state.detach().cpu(),
-                action=action[0, :].detach().cpu(),
-                reward=reward.detach().cpu(),
-                next_state=next_state.detach().cpu(),
-                done=torch.Tensor([done]).detach().cpu(),
+            state=state.detach().cpu(),
+            action=action[0, :].detach().cpu(),
+            reward=reward.detach().cpu(),
+            next_state=next_state.detach().cpu(),
+            done=torch.Tensor([done]).detach().cpu(),
         )
 
         state = next_state
@@ -83,6 +82,20 @@ def main():
         # Train agent after collecting sufficient data
         if t >= start_timesteps:
             agent.train_buffer(batch_size)
+        if done:
+            state = env.reset()
+            done = False
+            episode_reward = 0
+            episode_timesteps = 0
+            episode_num += 1
+        # Evaluate episode
+        if (t + 1) % eval_freq == 0:
+            average_reward = eval_policy(agent, 2)
+            evaluations.append(average_reward)
+            # np.save(f"./results/{file_name}", evaluations)
+            # if args.save_model: policy.save(f"./models/{file_name}")
+
+        # Logging
         if done and t >= start_timesteps:
             # +1 to account for 0 indexing. +0 on ep_timesteps since it will increment +1 even if done=True
             print(
@@ -90,20 +103,9 @@ def main():
             )
             # Reset environment
             tensorbard_summary.add_scalar("Reward/train", episode_reward, t)
-            tensorbard_summary.flush()
-            state, done = env.reset(), False
-            episode_reward = 0
-            episode_timesteps = 0
-            episode_num += 1
-
-        # Evaluate episode
         if (t + 1) % eval_freq == 0 and t >= start_timesteps:
-            average_reward = eval_policy(agent, 2)
-            evaluations.append(average_reward)
             tensorbard_summary.add_scalar("Reward/evaluation", average_reward, t)
-            tensorbard_summary.flush()
-            # np.save(f"./results/{file_name}", evaluations)
-            # if args.save_model: policy.save(f"./models/{file_name}")
+
     tensorbard_summary.close()
 
 

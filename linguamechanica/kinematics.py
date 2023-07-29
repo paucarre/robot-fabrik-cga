@@ -54,7 +54,7 @@ class DifferentiableOpenChainMechanism:
         original_shape = twist.shape
         twist = twist.view(-1, original_shape[2])
         transformations = transforms.se3_exp_map(twist)
-        '''
+        """
         Transformations will have indices of this type:
         [
             => The i-th index of the chain
@@ -64,7 +64,7 @@ class DifferentiableOpenChainMechanism:
             => 4 rows of the left-transformation matrix
             => 4 columns of the left-transformation matrix
         ]
-        '''
+        """
         transformations = transformations.view(
             original_shape[0],
             original_shape[1],

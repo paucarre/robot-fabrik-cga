@@ -59,6 +59,11 @@ class Agent:
         self.tau = tau
 
     def store_transition(self, state, action, reward, next_state, done):
+        """
+        Note that the `replay_buffer` is using a `RoundRobinWriter` and
+        thus it will get updated with new data despite the storege
+        being full.
+        """
         self.replay_buffer.add([state, action, reward, next_state, done])
 
     def compute_log_prob(self, mu_v, var_v, actions_v):

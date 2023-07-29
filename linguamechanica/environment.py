@@ -87,13 +87,13 @@ class Environment:
         current_pose = transforms.Transform3d(
             matrix=transforms.se3_exp_map(self.current_parameters)
         )
-        '''
+        """
         This means the pose of the current pose wrt the 
         target pose.
         Note that the `compose` method is left-application of
         a left-matrix, meaning that it is equivalnet to:
         `target_pose.inverse() @ current_pose`
-        '''
+        """
         pose_difference = current_pose.compose(target_pose.inverse())
         # TODO: this needs reweighting of angles and distances
         pose_distance = pose_difference.get_se3_log().abs().sum()
