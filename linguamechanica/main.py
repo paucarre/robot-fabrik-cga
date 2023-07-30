@@ -4,9 +4,6 @@ from linguamechanica.kinematics import UrdfRobotLibrary
 from linguamechanica.environment import Environment
 from linguamechanica.agent import Agent
 from torch.utils.tensorboard import SummaryWriter
-import traceback
-import logging
-import pdb
 
 
 # Runs policy for X episodes and returns average reward
@@ -43,7 +40,7 @@ def main():
         state_dims=(env.observation_space.shape),
         action_dims=env.action_dims,
         gamma=0.99,
-        policy_freq=4,
+        policy_freq=8,
         tau=0.005,
     )
     state, done = env.reset(), False
@@ -53,7 +50,7 @@ def main():
     eval_freq = 200
     max_timesteps = 1e6
     start_timesteps = 2000
-    batch_size = 32
+    batch_size = 1024
     for t in range(int(max_timesteps)):
         episode_timesteps += 1
         # Select action randomly or according to policy
@@ -93,6 +90,7 @@ def main():
             # Reset environment
             tensorbard_summary.add_scalar("Reward/train", episode_reward, t)
         if (t + 1) % eval_freq == 0 and t >= start_timesteps:
+            average_reward = eval_policy(agent, 2)
             tensorbard_summary.add_scalar("Reward/evaluation", average_reward, t)
 
         if done:
@@ -101,17 +99,9 @@ def main():
             episode_reward = 0
             episode_timesteps = 0
             episode_num += 1
-        # Evaluate episode
-        if (t + 1) % eval_freq == 0:
-            eval_policy(agent, 2)
-            # if args.save_model: policy.save(f"./models/{file_name}")
 
     tensorbard_summary.close()
 
 
 if __name__ == "__main__":
-    try:
-        pdb.set_trace()
-        main()
-    except:
-        logging.error(traceback.format_exc())
+    main()

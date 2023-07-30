@@ -24,6 +24,7 @@ class Environment:
     def uniformly_sample_parameters_within_constraints(self):
         coordinates = []
         for i in range(len(self.open_chain.joint_limits)):
+            # TODO: check if unconstrained works
             coordinates.append(
                 random.uniform(
                     self.open_chain.joint_limits[i][0],
@@ -75,7 +76,13 @@ class Environment:
         self.target_pose = transforms.se3_log_map(
             self.target_transformation.get_matrix()
         )
-        self.current_parameters = self.uniformly_sample_parameters_within_constraints()
+        # TODO: add a level, max noise clip and
+        # also restrict to constraints
+        # neecessary also be able to have levels....
+        noise = torch.randn_like(self.target_parameters)
+        noise = noise.clamp(-0.1, 0.1)
+        self.current_parameters = self.target_parameters + (noise)
+        # self.uniformly_sample_parameters_within_constraints()
         observation = self.generate_observation()
         self.current_step = 0
         return observation
@@ -96,7 +103,8 @@ class Environment:
         """
         pose_difference = current_pose.compose(target_pose.inverse())
         # TODO: this needs reweighting of angles and distances
-        pose_distance = pose_difference.get_se3_log().abs().sum()
+        # TODO: currently it only accounts for translation ("[:3]"), not rotation
+        pose_distance = pose_difference.get_se3_log()[:3].abs().sum()
         # TODO: this needs to be implemented properly
         done = pose_distance < 1e-1
         return -pose_distance, done

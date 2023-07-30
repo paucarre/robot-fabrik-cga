@@ -12,12 +12,12 @@ class Agent:
         state_dims,
         action_dims,
         gamma=0.99,
-        policy_freq=4,
+        policy_freq=8,
         tau=0.005,
         max_action=0.1,
-        min_variance=0.001,
-        max_variance=0.01,
-        noise_clip=0.1,
+        min_variance=0.0001,
+        max_variance=0.001,
+        noise_clip=0.001,
         policy_noise=0.01,
         fc1_dims=256,
         fc2_dims=256,
@@ -78,13 +78,14 @@ class Agent:
         state = torch.tensor([state], dtype=torch.float).to(self.actor.device)
         mu_v, var_v = self.actor.forward(state)
         std_v = torch.sqrt(var_v)
+        var_v = torch.clip(var_v, min=-self.noise_clip, max=self.noise_clip)
         actions_v = torch.normal(mu_v, std_v)
         """
             TODO: this might work for angular actuators, but not for
             prismatic actuators. It is necessary a noise_clip
             that is congruent with the type of actuator.
         """
-        actions_v = torch.clip(actions_v, min=-self.noise_clip, max=self.noise_clip)
+        actions_v = torch.clip(actions_v, min=-self.max_action, max=self.max_action)
         log_prob = self.compute_log_prob(mu_v, var_v, actions_v)
         return actions_v, log_prob
 
