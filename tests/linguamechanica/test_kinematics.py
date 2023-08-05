@@ -11,6 +11,32 @@ import torch
 
 
 class TestDifferentiableOpenChainMechanism(unittest.TestCase):
+    def test_compute_error_twist(self):
+        """
+        Open Chains:
+        - translate 10 meters in z and rotate around x PI rads
+        """
+        screws = torch.Tensor(
+            [
+                [[0.0, 0.0, 1.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 1.0, 0.0, 0.0]],
+            ]
+        )
+        initial = torch.eye(4)
+        open_chain = DifferentiableOpenChainMechanism(
+            screws, initial, [(0, 100.0), (0, math.pi * 2)]
+        )
+        target_pose = torch.Tensor([[0, 0, 0, 0, 0, 0]])
+        # test zero pose and zero coords
+        coords = torch.Tensor([[0.0, 0.0]])
+        error_twist = open_chain.compute_error_twist(coords, target_pose)
+        assert error_twist.abs().sum() < 1e-10
+        # test movement of 10 from identity target
+        coords = torch.Tensor([[10.0, 0.0]])
+        error_twist = open_chain.compute_error_twist(coords, target_pose)
+        assert (
+            error_twist - torch.Tensor([[0.0, 0.0, 10.0, 0.0, 0.0, 0.0]])
+        ).abs().sum() < 1e-10
+
     def test_jacobian(self):
         """
         Open Chains:

@@ -56,8 +56,10 @@ class DifferentiableOpenChainMechanism:
     def compute_error_twist(self, coords, target_pose):
         current_transformation = self.forward_transformation(coords)
         target_transoformation = transforms.se3_exp_map(target_pose)
-        current_trans_to_target = target_transoformation.invese().concat(
-            current_transformation
+        current_trans_to_target = (
+            transforms.Transform3d(matrix=target_transoformation)
+            .inverse()
+            .compose(current_transformation)
         )
         error_twist = transforms.se3_log_map(current_trans_to_target.get_matrix())
         return error_twist
