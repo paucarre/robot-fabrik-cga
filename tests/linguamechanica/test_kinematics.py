@@ -11,6 +11,16 @@ import torch
 
 
 class TestDifferentiableOpenChainMechanism(unittest.TestCase):
+    def test_compute_weighted_error(self):
+        error_twist = torch.Tensor(
+            [[1, 0, 0, 0, 0, 0], [0, 0, 0, 1, 0, 0], [1, 0, 0, 1, 0, 0]]
+        ).float()
+        weights = torch.Tensor([0.1, 0.2, 0.3, 0.4, 0.5, 0.6])
+        error = DifferentiableOpenChainMechanism.compute_weighted_error(
+            error_twist, weights
+        )
+        (error - torch.Tensor([0.1, 0.4, 0.5])).abs().sum() < 1e-10
+
     def test_compute_error_twist(self):
         """
         Open Chains:
@@ -35,6 +45,12 @@ class TestDifferentiableOpenChainMechanism(unittest.TestCase):
         error_twist = open_chain.compute_error_twist(coords, target_pose)
         assert (
             error_twist - torch.Tensor([[0.0, 0.0, 10.0, 0.0, 0.0, 0.0]])
+        ).abs().sum() < 1e-10
+        # test rotation of 45 deg. from identity
+        coords = torch.Tensor([[0.0, np.pi / 4]])
+        error_twist = open_chain.compute_error_twist(coords, target_pose)
+        assert (
+            error_twist - torch.Tensor([[0.0, 0.0, 0.0, np.pi / 4, 0.0, 0.0]])
         ).abs().sum() < 1e-10
 
     def test_jacobian(self):
