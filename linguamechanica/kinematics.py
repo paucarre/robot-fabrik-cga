@@ -53,6 +53,41 @@ class DifferentiableOpenChainMechanism:
         twist = transforms.se3_log_map(transformation.get_matrix())
         return twist
 
+    def compute_error_twist(self, coords, target_pose):
+        current_transformation = self.forward_transformation(coords)
+        target_transoformation = transforms.se3_exp_map(target_pose)
+        current_trans_to_target = target_transoformation.invese().concat(
+            current_transformation
+        )
+        error_twist = transforms.se3_log_map(current_trans_to_target.get_matrix())
+        return error_twist
+
+    def compute_weighted_error(self, error_twist, weights):
+        error = (
+            torch.bmm(error_twist.transpose(0, 1), error_twist * weights.unsqueeze(0))
+            .sum(1)
+            .mean()
+        )
+        return error
+
+    def inverse_kinematics(
+        self, initial_coords, target_pose, min_error, error_weights, velocity_weights
+    ):
+        current_coords = initial_coords
+        error_twist = self.compute_error_twist(current_coords, target_pose)
+        error = self.compute_weighted_error(error_twist, error_weights)
+        velocity_rate = (
+            torch.ones([target_pose.shape[0], 6, 1]).to(error.device) * velocity_weights
+        )
+        while error >= min_error:
+            jacobian = self.jacobian(current_coords)
+            jacobian_pseudoinverse = torch.linalg.pinv(jacobian)
+            parameter_delta = torch.bmm(jacobian_pseudoinverse, velocity_rate)
+            current_coords += parameter_delta
+            error_twist = self.compute_error_twist(current_coords, target_pose)
+            error = self.compute_weighted_error(error_twist, error_weights)
+        return current_coords
+
     def jacobian(self, coordinates):
         """
         From coordinates of shape:

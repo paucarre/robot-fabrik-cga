@@ -69,7 +69,8 @@ class TestDifferentiableOpenChainMechanism(unittest.TestCase):
           - When rotation happens, translation can (and often does) take place.
           (e.g. robotic arms move using rotation parameters to move the robot)
           - SO(3) is a *semi* product: translation parameters do not
-          affect angular velocities but it's not true the other way around.
+          affect angular velocities but rotation parameters do affect
+          translation.
         """
         translation_jacobian_by_rotation_coords = jacobian[:, translation_idx, :][
             rotation_coords[:, translation_idx, :] == 1
@@ -82,6 +83,10 @@ class TestDifferentiableOpenChainMechanism(unittest.TestCase):
             translation_coords[:, translation_idx, :] == 1
         ]
         assert translation_jacobian_by_translation_coords.abs().sum() > 0.0
+        jacobian_pseudoinverse = torch.linalg.pinv(jacobian)
+        velocity_delta = torch.ones([3, 6, 1]) * 0.01
+        parameter_delta = torch.bmm(jacobian_pseudoinverse, velocity_delta)
+        print(parameter_delta)
 
     def test_forward_transformation(self):
         """
