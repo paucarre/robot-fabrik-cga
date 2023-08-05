@@ -47,35 +47,39 @@ class TestDifferentiableOpenChainMechanism(unittest.TestCase):
         """
         Translation parametes do *not* affect rotation velocities
         """
+        rotation_idx = [3, 4, 5]
+        translation_idx = [0, 1, 2]
         translation_coords = (
             torch.Tensor([[1, 0], [0, 1], [1, 0]]).unsqueeze(1).expand(jacobian.shape)
         )
-        rotation_jacobian_by_translation_coords = jacobian[:, 3:, :][
-            translation_coords[:, 3:, :] == 1
+        rotation_jacobian_by_translation_coords = jacobian[:, rotation_idx, :][
+            translation_coords[:, rotation_idx, :] == 1
         ]
         assert rotation_jacobian_by_translation_coords.abs().sum() < 1e-10
         """
         Rotation parameters affect rotation velocities.
         """
         rotation_coords = 1 - translation_coords
-        rotation_jacobian_by_rotation_coords = jacobian[:, 3:, :][
-            rotation_coords[:, 3:, :] == 1
+        rotation_jacobian_by_rotation_coords = jacobian[:, rotation_idx, :][
+            rotation_coords[:, rotation_idx, :] == 1
         ]
         assert rotation_jacobian_by_rotation_coords.abs().sum() > 0.0
         """
         Rotation parameters affect translation velocities
-        SO(3) is a *semi* product. When rotation happens,
-            translation also takes place. )
+          - When rotation happens, translation can (and often does) take place.
+          (e.g. robotic arms move using rotation parameters to move the robot)
+          - SO(3) is a *semi* product: translation parameters do not
+          affect angular velocities but it's not true the other way around.
         """
-        translation_jacobian_by_rotation_coords = jacobian[:, :3, :][
-            rotation_coords[:, :3, :] == 1
+        translation_jacobian_by_rotation_coords = jacobian[:, translation_idx, :][
+            rotation_coords[:, translation_idx, :] == 1
         ]
         assert translation_jacobian_by_rotation_coords.abs().sum() > 0.0
         """
         Translation parameters affect translation velocities
         """
-        translation_jacobian_by_translation_coords = jacobian[:, :3, :][
-            translation_coords[:, :3, :] == 1
+        translation_jacobian_by_translation_coords = jacobian[:, translation_idx, :][
+            translation_coords[:, translation_idx, :] == 1
         ]
         assert translation_jacobian_by_translation_coords.abs().sum() > 0.0
 
