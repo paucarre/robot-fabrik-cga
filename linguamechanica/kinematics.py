@@ -31,6 +31,13 @@ def to_left_multiplied(right_multiplied):
         [Rxz, Ryz, Rzz, 0],
         [Tx,  Ty,  Tz,  1],
     ]
+    This is equivalent to
+     M = [
+        [             ,  0],
+        [ transpose(R),  0],
+        [             ,  0],
+        [      T      ,  1],
+    ]
     """
     shape = right_multiplied.shape
     left_multiplied = right_multiplied.clone()
@@ -48,6 +55,33 @@ class DifferentiableOpenChainMechanism:
         self.screws = screws
         self.initial_matrix = to_left_multiplied(initial_matrix)
         self.joint_limits = joint_limits
+
+    def _jacobian_computation_forward(self, coords):
+        transformation = self.forward_transformation(coords)
+        twist = transforms.se3_log_map(transformation.get_matrix())
+        return twist
+
+    def jacobian(self, coordinates):
+        jacobian = torch.autograd.functional.jacobian(
+            self._jacobian_computation_forward, coordinates
+        )
+        """
+        Dimensions:
+            [batch, screw_coordinates, batch, coords]
+        Need to be reduced to:
+            [batch, screw_coordinates, coords]
+        By using `take_along_dim`
+        """
+        selector = (
+            torch.range(0, jacobian.shape[0] - 1)
+            .long()
+            .unsqueeze(1)
+            .unsqueeze(1)
+            .unsqueeze(1)
+            .to(jacobian.device)
+        )
+        jacobian = torch.take_along_dim(jacobian, selector, dim=2).squeeze()
+        return jacobian
 
     def forward_transformation(self, coordinates):
         twist = self.screws * coordinates.unsqueeze(2)

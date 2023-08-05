@@ -11,7 +11,75 @@ import torch
 
 
 class TestDifferentiableOpenChainMechanism(unittest.TestCase):
-    def test_forward_transformation_translation_rotation(self):
+    def test_jacobian(self):
+        """
+        Open Chains:
+        - translate 10 meters in z and rotate around x PI rads
+        - rotate 90 degrees around x and then translating towards y
+          ( which is x wrt the original frame)
+        - translate 10 meters in z and rotate around x PI rads
+
+        """
+        screws = torch.Tensor(
+            [
+                [[0.0, 0.0, 1.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 1.0, 0.0, 0.0]],
+                [[0.0, 0.0, 0.0, 1.0, 0.0, 0.0], [1.0, 0.0, 0.0, 0.0, 0.0, 0.0]],
+                [[0.0, 0.0, 1.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 1.0, 0.0, 0.0]],
+            ]
+        )
+        coords = torch.Tensor([[10.0, np.pi], [math.pi / 2.0, 10.0], [10.0, np.pi]])
+        initial = torch.Tensor(
+            [
+                [1, 0, 0, 0],
+                [0, math.cos(math.pi / 2.0), -math.sin(math.pi / 2.0), 10.0],
+                [0, math.sin(math.pi / 2.0), math.cos(math.pi / 2.0), 0.0],
+                [0, 0, 0, 1],
+            ]
+        )
+        open_chain = DifferentiableOpenChainMechanism(
+            screws, initial, [(0, 100.0), (0, math.pi * 2)]
+        )
+        jacobian = open_chain.jacobian(coords)
+        """
+        Verify size is [ Batch, Twist, Coordinate]
+        """
+        assert jacobian.shape == torch.Size([3, 6, 2])
+        """
+        Translation parametes do *not* affect rotation velocities
+        """
+        translation_coords = (
+            torch.Tensor([[1, 0], [0, 1], [1, 0]]).unsqueeze(1).expand(jacobian.shape)
+        )
+        rotation_jacobian_by_translation_coords = jacobian[:, 3:, :][
+            translation_coords[:, 3:, :] == 1
+        ]
+        assert rotation_jacobian_by_translation_coords.abs().sum() < 1e-10
+        """
+        Rotation parameters affect rotation velocities.
+        """
+        rotation_coords = 1 - translation_coords
+        rotation_jacobian_by_rotation_coords = jacobian[:, 3:, :][
+            rotation_coords[:, 3:, :] == 1
+        ]
+        assert rotation_jacobian_by_rotation_coords.abs().sum() > 0.0
+        """
+        Rotation parameters affect translation velocities
+        SO(3) is a *semi* product. When rotation happens,
+            translation also takes place. )
+        """
+        translation_jacobian_by_rotation_coords = jacobian[:, :3, :][
+            rotation_coords[:, :3, :] == 1
+        ]
+        assert translation_jacobian_by_rotation_coords.abs().sum() > 0.0
+        """
+        Translation parameters affect translation velocities
+        """
+        translation_jacobian_by_translation_coords = jacobian[:, :3, :][
+            translation_coords[:, :3, :] == 1
+        ]
+        assert translation_jacobian_by_translation_coords.abs().sum() > 0.0
+
+    def test_forward_transformation(self):
         """
         Open Chains:
         - translate 10 meters in z and rotate around x PI rads
