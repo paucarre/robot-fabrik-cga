@@ -12,14 +12,6 @@ import matplotlib.pyplot as plt
 import torch
 from pytorch3d import transforms
 
-"""
-TODO: remove if never used
-"""
-
-
-def zero_pose():
-    return torch.Tensor([[1, 0, 0, 0], [0, 0, 0, 1]]).transpose(0, 1)
-
 
 def to_left_multiplied(right_multiplied):
     """
@@ -62,6 +54,15 @@ class DifferentiableOpenChainMechanism:
         return twist
 
     def jacobian(self, coordinates):
+        """
+        From coordinates of shape:
+            [ Batch, Coordinates ]
+        Returns Jacobian of shape:
+            [ Batch, Velocities, Coordinates]
+        Velocities is always 6 with the
+        first 3 components being translation
+        and the last 3 rotation
+        """
         jacobian = torch.autograd.functional.jacobian(
             self._jacobian_computation_forward, coordinates
         )
@@ -71,6 +72,9 @@ class DifferentiableOpenChainMechanism:
         Need to be reduced to:
             [batch, screw_coordinates, coords]
         By using `take_along_dim`
+        Conceptually this means that coordinates that are
+        used in a kinematic chain are not used for other
+        kinematic chains and thus the jacobian shall be zero.
         """
         selector = (
             torch.range(0, jacobian.shape[0] - 1)
