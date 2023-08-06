@@ -8,9 +8,39 @@ from linguamechanica.kinematics import (
 )
 import random
 import torch
+from pytorch3d import transforms
 
 
 class TestDifferentiableOpenChainMechanism(unittest.TestCase):
+    def test_inverse_kinematics(self):
+        """
+        Open Chains:
+        - translate 10 meters in z and rotate around x PI rads
+        """
+        screws = torch.Tensor(
+            [
+                [[0.0, 0.0, 1.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 1.0, 0.0, 0.0]],
+            ]
+        )
+        initial = torch.eye(4)
+        open_chain = DifferentiableOpenChainMechanism(
+            screws, initial, [(0, 100.0), (0, math.pi * 2)]
+        )
+        coords = torch.Tensor([[10.0, np.pi / 4]])
+        matrix = open_chain.forward_transformation(coords)
+        pose = transforms.se3_log_map(matrix.get_matrix())
+
+        target_pose = pose
+        found_coords = open_chain.inverse_kinematics(
+            initial_coords=torch.Tensor([[0.0, 0.0]]),
+            target_pose=target_pose,
+            min_error=1e-2,
+            error_weights=torch.Tensor([1.0, 1.0, 1.0, 1.0, 1.0, 1.0]),
+            parameter_update_rate=torch.Tensor([0.5, 0.5]),
+            max_steps=10000,
+        )
+        assert (found_coords - coords).abs().sum() <= 1e-2
+
     def test_compute_weighted_error(self):
         error_twist = torch.Tensor(
             [[1, 0, 0, 0, 0, 0], [0, 0, 0, 1, 0, 0], [1, 0, 0, 1, 0, 0]]

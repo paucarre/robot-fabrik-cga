@@ -53,17 +53,17 @@ class DifferentiableOpenChainMechanism:
         twist = transforms.se3_log_map(transformation.get_matrix())
         return twist
 
-    def compute_error_twist(self, coords, target_pose):
+    def compute_error_pose(self, coords, target_pose):
         current_transformation = self.forward_transformation(coords)
         target_transoformation = transforms.se3_exp_map(target_pose)
         current_trans_to_target = current_transformation.compose(
             transforms.Transform3d(matrix=target_transoformation).inverse()
         )
-        error_twist = transforms.se3_log_map(current_trans_to_target.get_matrix())
-        return error_twist
+        error_pose = transforms.se3_log_map(current_trans_to_target.get_matrix())
+        return error_pose
 
-    def compute_weighted_error(error_twist, weights):
-        return (error_twist * weights.unsqueeze(0)).sum(1)
+    def compute_weighted_error(error_pose, weights):
+        return (error_pose.abs() * weights.unsqueeze(0)).sum(1)
 
     def inverse_kinematics(
         self,
@@ -71,24 +71,24 @@ class DifferentiableOpenChainMechanism:
         target_pose,
         min_error,
         error_weights,
-        velocity_weights,
+        parameter_update_rate,
         max_steps=1000,
     ):
         current_coords = initial_coords
-        error_twist = self.compute_error_twist(current_coords, target_pose)
-        error = self.compute_weighted_error(error_twist, error_weights)
-        velocity_rate = (
-            torch.ones([target_pose.shape[0], 6, 1]).to(error.device) * velocity_weights
+        error_pose = self.compute_error_pose(current_coords, target_pose)
+        error = DifferentiableOpenChainMechanism.compute_weighted_error(
+            error_pose, error_weights
         )
+        parameter_update_rate = parameter_update_rate.unsqueeze(0)
         current_step = 0
         while error >= min_error and current_step < max_steps:
             jacobian = self.jacobian(current_coords)
             jacobian_pseudoinverse = torch.linalg.pinv(jacobian)
-            parameter_delta = torch.bmm(jacobian_pseudoinverse, velocity_rate)
-            current_coords += parameter_delta
-            error_twist = self.compute_error_twist(current_coords, target_pose)
+            parameter_delta = torch.bmm(jacobian_pseudoinverse, error_pose.unsqueeze(2))
+            current_coords -= parameter_delta.squeeze(2) * parameter_update_rate
+            error_pose = self.compute_error_pose(current_coords, target_pose)
             error = DifferentiableOpenChainMechanism.compute_weighted_error(
-                error_twist, error_weights
+                error_pose, error_weights
             )
             current_step += 1
         return current_coords
@@ -124,7 +124,7 @@ class DifferentiableOpenChainMechanism:
             .unsqueeze(1)
             .to(jacobian.device)
         )
-        jacobian = torch.take_along_dim(jacobian, selector, dim=2).squeeze()
+        jacobian = torch.take_along_dim(jacobian, selector, dim=2).squeeze(2)
         return jacobian
 
     def forward_transformation(self, coordinates):
