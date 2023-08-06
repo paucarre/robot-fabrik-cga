@@ -10,7 +10,9 @@ from pytransform3d.urdf import (
 )
 import matplotlib.pyplot as plt
 import torch
+import torch.nn as nn
 from pytorch3d import transforms
+import torch.optim as optim
 
 
 def to_left_multiplied(right_multiplied):
@@ -40,6 +42,29 @@ def to_left_multiplied(right_multiplied):
         left_multiplied = left_multiplied.transpose(0, 1)
         left_multiplied[0:3, 0:3] = right_multiplied[0:3, 0:3].transpose(0, 1)
     return left_multiplied
+
+
+class KinematicsNetwork(nn.Module):
+    def __init__(self, initial_coords, chain, error_weights, lr=0.001):
+        super(KinematicsNetwork, self).__init__()
+        self.chain = chain
+        self.coords = nn.Parameter(initial_coords.clone())
+        self.error_weights = error_weights
+        self.optimizer = optim.Adam(self.parameters(), lr=lr)
+        self.loss = None
+
+    def forward(self, target_pose):
+        error_pose = self.chain.compute_error_pose(self.coords, target_pose)
+        error = DifferentiableOpenChainMechanism.compute_weighted_error(
+            error_pose, self.error_weights
+        )
+        return error
+
+    def train_step(self, target_pose):
+        self.optimizer.zero_grad()
+        self.loss = self(target_pose)
+        self.loss.backward()
+        self.optimizer.step()
 
 
 class DifferentiableOpenChainMechanism:
@@ -92,6 +117,26 @@ class DifferentiableOpenChainMechanism:
             )
             current_step += 1
         return current_coords
+
+    def inverse_kinematics_backprop(
+        self,
+        initial_coords,
+        target_pose,
+        min_error,
+        error_weights,
+        lr=0.001,
+        max_steps=1000,
+    ):
+        kinematics_network = KinematicsNetwork(
+            initial_coords, self, error_weights, lr=lr
+        )
+        current_step = 0
+        while (
+            kinematics_network.loss is None or kinematics_network.loss >= min_error
+        ) and current_step < max_steps:
+            kinematics_network.train_step(target_pose=target_pose)
+            current_step += 1
+        return kinematics_network.coords
 
     def jacobian(self, coordinates):
         """

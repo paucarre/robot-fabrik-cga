@@ -12,6 +12,34 @@ from pytorch3d import transforms
 
 
 class TestDifferentiableOpenChainMechanism(unittest.TestCase):
+    def test_inverse_kinematics_network(self):
+        """
+        Open Chains:
+        - translate 10 meters in z and rotate around x PI rads
+        """
+        screws = torch.Tensor(
+            [
+                [[0.0, 0.0, 1.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 1.0, 0.0, 0.0]],
+            ]
+        )
+        initial = torch.eye(4)
+        open_chain = DifferentiableOpenChainMechanism(
+            screws, initial, [(0, 100.0), (0, math.pi * 2)]
+        )
+        coords = torch.Tensor([[10.0, np.pi / 4]])
+        matrix = open_chain.forward_transformation(coords)
+        pose = transforms.se3_log_map(matrix.get_matrix())
+        target_pose = pose
+        found_coords = open_chain.inverse_kinematics_backprop(
+            initial_coords=torch.Tensor([[0.0, 0.0]]),
+            target_pose=target_pose,
+            min_error=1e-2,
+            error_weights=torch.Tensor([1.0, 1.0, 1.0, 1.0, 1.0, 1.0]),
+            lr=0.01,
+            max_steps=40000,
+        )
+        assert (found_coords - coords).abs().sum() <= 1e-2
+
     def test_inverse_kinematics(self):
         """
         Open Chains:
@@ -51,7 +79,7 @@ class TestDifferentiableOpenChainMechanism(unittest.TestCase):
         )
         (error - torch.Tensor([0.1, 0.4, 0.5])).abs().sum() < 1e-10
 
-    def test_compute_error_twist(self):
+    def test_compute_error_pose(self):
         """
         Open Chains:
         - translate 10 meters in z and rotate around x PI rads
@@ -68,17 +96,17 @@ class TestDifferentiableOpenChainMechanism(unittest.TestCase):
         target_pose = torch.Tensor([[0, 0, 0, 0, 0, 0]])
         # test zero pose and zero coords
         coords = torch.Tensor([[0.0, 0.0]])
-        error_twist = open_chain.compute_error_twist(coords, target_pose)
+        error_twist = open_chain.compute_error_pose(coords, target_pose)
         assert error_twist.abs().sum() < 1e-10
         # test movement of 10 from identity target
         coords = torch.Tensor([[10.0, 0.0]])
-        error_twist = open_chain.compute_error_twist(coords, target_pose)
+        error_twist = open_chain.compute_error_pose(coords, target_pose)
         assert (
             error_twist - torch.Tensor([[0.0, 0.0, 10.0, 0.0, 0.0, 0.0]])
         ).abs().sum() < 1e-10
         # test rotation of 45 deg. from identity
         coords = torch.Tensor([[0.0, np.pi / 4]])
-        error_twist = open_chain.compute_error_twist(coords, target_pose)
+        error_twist = open_chain.compute_error_pose(coords, target_pose)
         assert (
             error_twist - torch.Tensor([[0.0, 0.0, 0.0, np.pi / 4, 0.0, 0.0]])
         ).abs().sum() < 1e-10
