@@ -5,6 +5,7 @@ from pytorch3d import transforms
 import math
 from linguamechanica.kinematics import DifferentiableOpenChainMechanism
 
+
 class Environment:
     def __init__(self, open_chain, weights, max_steps_done=200):
         self.open_chain = open_chain
@@ -22,7 +23,7 @@ class Environment:
             - Angle: sigmoid(x) - 0.5 or something similar
         """
         self.weights = weights
-        self.observation_space = np.zeros(6 + 6 + 6)
+        self.observation_space = np.zeros(6 + 6)
         self.action_dims = np.zeros(6).shape
         self.current_step = 0
         self.max_steps_done = max_steps_done
@@ -44,8 +45,8 @@ class Environment:
         observation_tensor[:6] = observation["target_pose"].detach().cpu()
         # TODO: test if this is key for backpropagation on manifold.
         # It should be a pytorch tensor and undetached
-        observation_tensor[6:12] = observation["current_pose"].detach().cpu()
-        observation_tensor[12:] = observation["current_parameters"].detach().cpu()
+        # observation_tensor[6:12] = observation["current_pose"].detach().cpu()
+        observation_tensor[6:] = observation["current_parameters"].detach().cpu()
         # index = torch.Tensor(6)
         # index[observation["current_parameter_index"]] = 1.0
         # observation_np[12:] = index[:]
@@ -95,24 +96,25 @@ class Environment:
         return observation
 
     def compute_reward(self):
-        error_pose = self.open_chain.compute_error_pose(\
-            self.current_parameters, 
-            self.target_pose)
-        pose_error = DifferentiableOpenChainMechanism.compute_weighted_error(error_pose, 
-            self.weights)
+        error_pose = self.open_chain.compute_error_pose(
+            self.current_parameters, self.target_pose
+        )
+        pose_error = DifferentiableOpenChainMechanism.compute_weighted_error(
+            error_pose, self.weights
+        )
         done = pose_error < 1e-1
         return -pose_error, done
 
     def step(self, action):
         self.current_step += 1
         # print(f"Action {action}, {self.current_parameter_index}")
-        '''
+        """
         TODO:
         Clip the current parameters to the max and min values.
         Even if there are no constraints this is necessary. For
         instance, the revolute joints will go from (-pi, pi)
         or (0, 2 * pi).
-        '''
+        """
         self.current_parameters[:, :] += action[:, :].cpu()
         # self.current_parameter_index = (self.current_parameter_index + 1) % len(
         #    self.open_chain

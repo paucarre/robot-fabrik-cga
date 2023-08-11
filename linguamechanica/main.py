@@ -2,7 +2,7 @@ import numpy as np
 import torch
 from linguamechanica.kinematics import UrdfRobotLibrary
 from linguamechanica.environment import Environment
-from linguamechanica.agent import Agent
+from linguamechanica.agent import IKAgent
 from torch.utils.tensorboard import SummaryWriter
 
 
@@ -10,8 +10,8 @@ from torch.utils.tensorboard import SummaryWriter
 # A fixed seed is used for the eval environment
 def eval_policy(agent, weights, eval_episodes=10):
     urdf_robot = UrdfRobotLibrary.dobot_cr5()
-    open_chains = urdf_robot.extract_open_chains(0.3)
-    eval_env = Environment(open_chains[-1], weights)
+    open_chain = urdf_robot.extract_open_chains(0.3)[-1]
+    eval_env = Environment(open_chain, weights)
 
     avg_reward = 0.0
     for _ in range(eval_episodes):
@@ -33,11 +33,13 @@ def main():
     tensorbard_summary = SummaryWriter()
 
     urdf_robot = UrdfRobotLibrary.dobot_cr5()
-    open_chains = urdf_robot.extract_open_chains(0.3)
+    open_chain = urdf_robot.extract_open_chains(0.3)[-1]
     weights = torch.Tensor([1.0, 1.0, 1.0, 1.0, 1.0, 1.0])
-    env = Environment(open_chains[-1], weights)
-    agent = Agent(
-        lr=0.000001,
+    env = Environment(open_chain, weights)
+    lr = 0.000001
+    agent = IKAgent(
+        open_chain=open_chain,
+        lr=lr,
         state_dims=(env.observation_space.shape),
         action_dims=env.action_dims,
         gamma=0.99,

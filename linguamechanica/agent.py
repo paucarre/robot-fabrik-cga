@@ -1,13 +1,14 @@
 import torch
 import torch.nn.functional as F
 import math
-from linguamechanica.models import Actor, Critic
+from linguamechanica.models import IKActor, Critic
 from torchrl.data import ReplayBuffer
 
 
-class Agent:
+class IKAgent:
     def __init__(
         self,
+        open_chain,
         lr,
         state_dims,
         action_dims,
@@ -31,7 +32,9 @@ class Agent:
         self.max_variance = max_variance
         self.noise_clip = noise_clip
         self.policy_noise = policy_noise
-        self.actor = Actor(
+        self.open_chain = open_chain
+        self.actor = IKActor(
+            self.open_chain,
             self.max_action,
             self.min_variance,
             self.max_variance,
@@ -42,7 +45,8 @@ class Agent:
             fc2_dims,
         )
         self.critic = Critic(lr, state_dims, action_dims).to(self.actor.device)
-        self.actor_target = Actor(
+        self.actor_target = IKActor(
+            self.open_chain,
             self.max_action,
             self.min_variance,
             self.max_variance,

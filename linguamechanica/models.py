@@ -2,11 +2,13 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
+from pytorch3d import transforms
 
 
-class Actor(nn.Module):
+class IKActor(nn.Module):
     def __init__(
         self,
+        open_chain,
         max_action,
         min_variance,
         max_variance,
@@ -16,8 +18,9 @@ class Actor(nn.Module):
         fc1_dims=256,
         fc2_dims=256,
     ):
-        super(Actor, self).__init__()
-        self.fc1 = nn.Linear(*state_dims, fc1_dims)
+        super(IKActor, self).__init__()
+        self.open_chain = open_chain
+        self.fc1 = nn.Linear(state_dims[0] + 6, fc1_dims)
         self.fc2 = nn.Linear(fc1_dims, fc2_dims)
         self.mu = nn.Linear(fc2_dims, sum(action_dims))
         self.var = nn.Linear(fc2_dims, sum(action_dims))
@@ -29,7 +32,10 @@ class Actor(nn.Module):
         self.to(self.device)
 
     def forward(self, state):
-        x = F.relu(self.fc1(state))
+        parameters = state[:, 6:]
+        transformation = self.open_chain.forward_transformation(parameters)
+        pose = transforms.se3_log_map(transformation.get_matrix())
+        x = F.relu(self.fc1(torch.cat([state, pose], 1)))
         x = F.relu(self.fc2(x))
         mu = F.tanh(self.mu(x)) * self.max_action
         var = (
@@ -38,25 +44,25 @@ class Actor(nn.Module):
         return mu, var
 
 
-class DeterministicDifferentiableIKActor(nn.Module):
+class DeterministicDiffIKActor(nn.Module):
     def __init__(
         self,
         open_chain,
         max_action,
     ):
-        super(DeterministicDifferentiableIKActor, self).__init__()
+        super(DeterministicDiffIKActor, self).__init__()
         self.open_chain = open_chain
         self.max_action = max_action
         self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
         self.to(self.device)
 
     def forward(self, state):
-        '''
-        We ignore the current pose from the 
+        """
+        We ignore the current pose from the
         state as we only carre about the current parameters
-        '''
+        """
         target_pose = state[:6]
-        current_coords = state[12:]
+        current_coords = state[6:]
         error_pose = self.open_chain.compute_error_pose(current_coords, target_pose)
         mu = self.open_chain.inverse_kinematics_step(current_coords, error_pose)
         return mu, None
