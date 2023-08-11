@@ -38,6 +38,30 @@ class Actor(nn.Module):
         return mu, var
 
 
+class DeterministicDifferentiableIKActor(nn.Module):
+    def __init__(
+        self,
+        open_chain,
+        max_action,
+    ):
+        super(DeterministicDifferentiableIKActor, self).__init__()
+        self.open_chain = open_chain
+        self.max_action = max_action
+        self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+        self.to(self.device)
+
+    def forward(self, state):
+        '''
+        We ignore the current pose from the 
+        state as we only carre about the current parameters
+        '''
+        target_pose = state[:6]
+        current_coords = state[12:]
+        error_pose = self.open_chain.compute_error_pose(current_coords, target_pose)
+        mu = self.open_chain.inverse_kinematics_step(current_coords, error_pose)
+        return mu, None
+
+
 class Critic(nn.Module):
     def __init__(self, lr, state_dim, action_dim):
         super(Critic, self).__init__()

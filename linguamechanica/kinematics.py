@@ -90,6 +90,12 @@ class DifferentiableOpenChainMechanism:
     def compute_weighted_error(error_pose, weights):
         return (error_pose.abs() * weights.unsqueeze(0)).sum(1)
 
+    def inverse_kinematics_step(self, parameters, error_pose):
+        jacobian = self.jacobian(parameters)
+        jacobian_pseudoinverse = torch.linalg.pinv(jacobian)
+        parameter_delta = torch.bmm(jacobian_pseudoinverse, error_pose.unsqueeze(2))
+        return parameter_delta.squeeze(2)
+
     def inverse_kinematics(
         self,
         initial_coords,
@@ -107,10 +113,8 @@ class DifferentiableOpenChainMechanism:
         parameter_update_rate = parameter_update_rate.unsqueeze(0)
         current_step = 0
         while error >= min_error and current_step < max_steps:
-            jacobian = self.jacobian(current_coords)
-            jacobian_pseudoinverse = torch.linalg.pinv(jacobian)
-            parameter_delta = torch.bmm(jacobian_pseudoinverse, error_pose.unsqueeze(2))
-            current_coords -= parameter_delta.squeeze(2) * parameter_update_rate
+            parameter_delta = self.inverse_kinematics_step(current_coords, error_pose)
+            current_coords -= parameter_delta * parameter_update_rate
             error_pose = self.compute_error_pose(current_coords, target_pose)
             error = DifferentiableOpenChainMechanism.compute_weighted_error(
                 error_pose, error_weights

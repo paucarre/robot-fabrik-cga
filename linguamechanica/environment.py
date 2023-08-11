@@ -3,20 +3,26 @@ import random
 import torch
 from pytorch3d import transforms
 import math
-
+from linguamechanica.kinematics import DifferentiableOpenChainMechanism
 
 class Environment:
-    def __init__(self, open_chain, max_steps_done=200):
+    def __init__(self, open_chain, weights, max_steps_done=200):
         self.open_chain = open_chain
         """
         State dims should be for now:
             - Target pose, 6 
-            - Current parameters, 6
-            - Current parameter index one hot, 6
+            - Current pose, 6
+            - Current parameters, 6 
+              Note that the current pose might
+              not be informative enough as to know
+              the current parameters one would need to solve the
+              inverse kinematics for the current pose,
+              which might be an even more difficult task.
         Action size should be:
             - Angle: sigmoid(x) - 0.5 or something similar
         """
-        self.observation_space = np.zeros(6 + 6)
+        self.weights = weights
+        self.observation_space = np.zeros(6 + 6 + 6)
         self.action_dims = np.zeros(6).shape
         self.current_step = 0
         self.max_steps_done = max_steps_done
@@ -39,6 +45,7 @@ class Environment:
         # TODO: test if this is key for backpropagation on manifold.
         # It should be a pytorch tensor and undetached
         observation_tensor[6:12] = observation["current_pose"].detach().cpu()
+        observation_tensor[12:] = observation["current_parameters"].detach().cpu()
         # index = torch.Tensor(6)
         # index[observation["current_parameter_index"]] = 1.0
         # observation_np[12:] = index[:]
@@ -88,30 +95,24 @@ class Environment:
         return observation
 
     def compute_reward(self):
-        target_pose = transforms.Transform3d(
-            matrix=transforms.se3_exp_map(self.target_parameters)
-        )
-        current_pose = transforms.Transform3d(
-            matrix=transforms.se3_exp_map(self.current_parameters)
-        )
-        """
-        This means the pose of the current pose wrt the 
-        target pose.
-        Note that the `compose` method is left-application of
-        a left-matrix, meaning that it is equivalnet to:
-        `target_pose.inverse() @ current_pose`
-        """
-        pose_difference = current_pose.compose(target_pose.inverse())
-        # TODO: this needs reweighting of angles and distances
-        # TODO: currently it only accounts for translation ("[:3]"), not rotation
-        pose_distance = pose_difference.get_se3_log()[:3].abs().sum()
-        # TODO: this needs to be implemented properly
-        done = pose_distance < 1e-1
-        return -pose_distance, done
+        error_pose = self.open_chain.compute_error_pose(\
+            self.current_parameters, 
+            self.target_pose)
+        pose_error = DifferentiableOpenChainMechanism.compute_weighted_error(error_pose, 
+            self.weights)
+        done = pose_error < 1e-1
+        return -pose_error, done
 
     def step(self, action):
         self.current_step += 1
         # print(f"Action {action}, {self.current_parameter_index}")
+        '''
+        TODO:
+        Clip the current parameters to the max and min values.
+        Even if there are no constraints this is necessary. For
+        instance, the revolute joints will go from (-pi, pi)
+        or (0, 2 * pi).
+        '''
         self.current_parameters[:, :] += action[:, :].cpu()
         # self.current_parameter_index = (self.current_parameter_index + 1) % len(
         #    self.open_chain

@@ -8,10 +8,10 @@ from torch.utils.tensorboard import SummaryWriter
 
 # Runs policy for X episodes and returns average reward
 # A fixed seed is used for the eval environment
-def eval_policy(agent, eval_episodes=10):
+def eval_policy(agent, weights, eval_episodes=10):
     urdf_robot = UrdfRobotLibrary.dobot_cr5()
     open_chains = urdf_robot.extract_open_chains(0.3)
-    eval_env = Environment(open_chains[-1])
+    eval_env = Environment(open_chains[-1], weights)
 
     avg_reward = 0.0
     for _ in range(eval_episodes):
@@ -24,7 +24,7 @@ def eval_policy(agent, eval_episodes=10):
     avg_reward /= eval_episodes
 
     print("---------------------------------------")
-    print(f"Evaluation over {eval_episodes} episodes: {avg_reward:.3f}")
+    print(f"Evaluation over {eval_episodes} episodes: {avg_reward.item():.3f}")
     print("---------------------------------------")
     return avg_reward
 
@@ -34,7 +34,8 @@ def main():
 
     urdf_robot = UrdfRobotLibrary.dobot_cr5()
     open_chains = urdf_robot.extract_open_chains(0.3)
-    env = Environment(open_chains[-1])
+    weights = torch.Tensor([1.0, 1.0, 1.0, 1.0, 1.0, 1.0])
+    env = Environment(open_chains[-1], weights)
     agent = Agent(
         lr=0.000001,
         state_dims=(env.observation_space.shape),
@@ -85,12 +86,12 @@ def main():
         if done and t >= start_timesteps:
             # +1 to account for 0 indexing. +0 on ep_timesteps since it will increment +1 even if done=True
             print(
-                f"Total T: {t+1} Episode Num: {episode_num+1} Episode T: {episode_timesteps} Reward: {episode_reward:.3f}"
+                f"Total T: {t+1} Episode Num: {episode_num+1} Episode T: {episode_timesteps} Reward: {episode_reward.item():.3f}"
             )
             # Reset environment
             tensorbard_summary.add_scalar("Reward/train", episode_reward, t)
         if (t + 1) % eval_freq == 0 and t >= start_timesteps:
-            average_reward = eval_policy(agent, 2)
+            average_reward = eval_policy(agent, weights, 2)
             tensorbard_summary.add_scalar("Reward/evaluation", average_reward, t)
 
         if done:
