@@ -12,6 +12,35 @@ from pytorch3d import transforms
 
 
 class TestDifferentiableOpenChainMechanism(unittest.TestCase):
+    def test_compute_error_pose_cr5(self):
+        urdf_robot = UrdfRobotLibrary.dobot_cr5()
+        open_chains = urdf_robot.extract_open_chains(0.3)
+        open_chain = open_chains[-1]
+        for _ in range(1000):
+            coordinates = []
+            for i in range(len(urdf_robot.joint_names)):
+                coordinates.append(
+                    random.uniform(
+                        urdf_robot.joint_limits[i][0], urdf_robot.joint_limits[i][1]
+                    )
+                )
+            coordinates = torch.Tensor(coordinates).unsqueeze(0)
+            transformation = open_chain.forward_transformation(coordinates)
+            pose = transforms.se3_log_map(transformation.get_matrix())
+            # current_transformation = open_chain.forward_transformation(coordinates)
+            torch.set_printoptions(precision=10)
+            target_transformation = transforms.se3_exp_map(pose)
+            print("----------")
+            print(transformation.get_matrix())
+            print(target_transformation)
+            print((transformation.get_matrix() - target_transformation).abs().sum())
+            print("Identity Matrix")
+            print(target_transformation[0, :3, :3] @ target_transformation[0, :3, :3].T)
+            # transforms.se3_exp_map(transforms.se3_log_map(transform))
+            error_pose = open_chain.compute_error_pose(coordinates, pose)
+            expected_error_pose = torch.zeros(error_pose.shape)
+            assert (error_pose - expected_error_pose).abs().sum() <= 1e-3
+
     def test_inverse_kinematics_network(self):
         """
         Open Chains:
@@ -39,6 +68,51 @@ class TestDifferentiableOpenChainMechanism(unittest.TestCase):
             max_steps=40000,
         )
         assert (found_coords - coords).abs().sum() <= 1e-2
+
+    def test_inverse_kinematics_cr5(self):
+        urdf_robot = UrdfRobotLibrary.dobot_cr5()
+        open_chains = urdf_robot.extract_open_chains(0.3)
+        for _ in range(3):
+            coordinates = []
+            for i in range(len(urdf_robot.joint_names)):
+                coordinates.append(
+                    random.uniform(
+                        urdf_robot.joint_limits[i][0], urdf_robot.joint_limits[i][1]
+                    )
+                )
+            coordinates = torch.Tensor(coordinates).unsqueeze(0)
+            open_chain = open_chains[-1]
+            transformation = open_chain.forward_transformation(coordinates)
+            pose = transforms.se3_log_map(transformation.get_matrix())
+            target_pose = pose + (torch.rand(6) * 0.001)
+            initial_coords = coordinates
+            parameter_update_rate = 0.001 * torch.Tensor([1.0, 1.0, 1.0, 1.0, 1.0, 1.0])
+            error_weights = torch.Tensor([1.0, 1.0, 1.0, 1.0, 1.0, 1.0])
+            found_coords = open_chain.inverse_kinematics(
+                initial_coords=initial_coords,
+                target_pose=target_pose,
+                min_error=1e-3,
+                error_weights=error_weights,
+                parameter_update_rate=parameter_update_rate,
+                max_steps=500,
+            )
+            initial_error_pose = open_chain.compute_error_pose(
+                initial_coords, target_pose
+            )
+            initial_error_pose = (
+                DifferentiableOpenChainMechanism.compute_weighted_error(
+                    initial_error_pose, error_weights
+                )
+            )
+            found_error_pose = open_chain.compute_error_pose(found_coords, target_pose)
+            found_error_pose = DifferentiableOpenChainMechanism.compute_weighted_error(
+                found_error_pose, error_weights
+            )
+            relative_improvement = found_error_pose / (initial_error_pose + 1e-15)
+            """
+            At least a 10% improvement w.r.t. initial error
+            """
+            assert relative_improvement.mean() <= 0.9
 
     def test_inverse_kinematics(self):
         """

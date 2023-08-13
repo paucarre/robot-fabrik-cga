@@ -20,7 +20,8 @@ class IKActor(nn.Module):
     ):
         super(IKActor, self).__init__()
         self.open_chain = open_chain
-        self.fc1 = nn.Linear(state_dims[0] + 6, fc1_dims)
+        # Adding 6 for pose and 6 for error pose wrt target
+        self.fc1 = nn.Linear(state_dims[0] + 6 + 6, fc1_dims)
         self.fc2 = nn.Linear(fc1_dims, fc2_dims)
         self.mu = nn.Linear(fc2_dims, sum(action_dims))
         self.var = nn.Linear(fc2_dims, sum(action_dims))
@@ -30,17 +31,32 @@ class IKActor(nn.Module):
         self.optimizer = optim.Adam(self.parameters(), lr=lr)
         self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
         self.to(self.device)
+        self.jacobian_proportion = 1.0
+        self.mu.bias.data.fill_(0.0)
+        self.mu.weight.data.fill_(0.0)
 
     def forward(self, state):
-        parameters = state[:, 6:]
-        transformation = self.open_chain.forward_transformation(parameters)
+        current_coords = state[:, 6:]
+        target_pose = state[:, :6]
+        error_pose = self.open_chain.compute_error_pose(current_coords, target_pose)
+        transformation = self.open_chain.forward_transformation(current_coords)
         pose = transforms.se3_log_map(transformation.get_matrix())
-        x = F.relu(self.fc1(torch.cat([state, pose], 1)))
+        x = F.relu(self.fc1(torch.cat([state, pose, error_pose], 1)))
         x = F.relu(self.fc2(x))
         mu = F.tanh(self.mu(x)) * self.max_action
         var = (
             self.min_variance + ((F.tanh(self.var(x)) + 1.0) / 2.0) * self.max_variance
         )
+        if self.jacobian_proportion is not None and self.jacobian_proportion > 0.0:
+            error_pose = self.open_chain.compute_error_pose(current_coords, target_pose)
+            jacobian_mu = -0.01 * self.open_chain.inverse_kinematics_step(
+                current_coords, error_pose
+            )
+            var = torch.zeros(jacobian_mu.shape)
+            mu = (
+                (1.0 - self.jacobian_proportion) * mu
+            ) + self.jacobian_proportion * jacobian_mu
+            return jacobian_mu, var
         return mu, var
 
 
@@ -75,11 +91,15 @@ class Critic(nn.Module):
         self.l1 = nn.Linear(sum(state_dim) + sum(action_dim), 256)
         self.l2 = nn.Linear(256, 256)
         self.l3 = nn.Linear(256, 1)
+        self.l3.bias.data.fill_(0.0)
+        self.l3.weight.data.fill_(0.0)
 
         # Q2
         self.l4 = nn.Linear(sum(state_dim) + sum(action_dim), 256)
         self.l5 = nn.Linear(256, 256)
         self.l6 = nn.Linear(256, 1)
+        self.l6.bias.data.fill_(0.0)
+        self.l6.weight.data.fill_(0.0)
 
         self.optimizer = optim.Adam(self.parameters(), lr=lr)
 
@@ -88,11 +108,11 @@ class Critic(nn.Module):
 
         q1 = F.relu(self.l1(sa))
         q1 = F.relu(self.l2(q1))
-        q1 = self.l3(q1)
+        q1 = -F.relu(self.l3(q1))
 
         q2 = F.relu(self.l4(sa))
         q2 = F.relu(self.l5(q2))
-        q2 = self.l6(q2)
+        q2 = -F.relu(self.l6(q2))
         return q1, q2
 
     def Q1(self, state, action):
@@ -100,5 +120,5 @@ class Critic(nn.Module):
 
         q1 = F.relu(self.l1(sa))
         q1 = F.relu(self.l2(q1))
-        q1 = self.l3(q1)
+        q1 = -F.relu(self.l3(q1))
         return q1

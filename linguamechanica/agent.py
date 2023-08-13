@@ -9,7 +9,8 @@ class IKAgent:
     def __init__(
         self,
         open_chain,
-        lr,
+        lr_actor,
+        lr_critic,
         state_dims,
         action_dims,
         gamma=0.99,
@@ -24,7 +25,8 @@ class IKAgent:
         fc2_dims=256,
     ):
         self.gamma = gamma
-        self.lr = lr
+        self.lr_actor = lr_actor
+        self.lr_critic = lr_critic
         self.fc1_dims = fc1_dims
         self.fc2_dims = fc2_dims
         self.max_action = max_action
@@ -34,29 +36,33 @@ class IKAgent:
         self.policy_noise = policy_noise
         self.open_chain = open_chain
         self.actor = IKActor(
-            self.open_chain,
-            self.max_action,
-            self.min_variance,
-            self.max_variance,
-            lr,
-            state_dims,
-            action_dims,
-            fc1_dims,
-            fc2_dims,
+            open_chain=self.open_chain,
+            max_action=self.max_action,
+            min_variance=self.min_variance,
+            max_variance=self.max_variance,
+            lr=lr_actor,
+            state_dims=state_dims,
+            action_dims=action_dims,
+            fc1_dims=fc1_dims,
+            fc2_dims=fc2_dims,
         )
-        self.critic = Critic(lr, state_dims, action_dims).to(self.actor.device)
+        self.critic = Critic(
+            lr=lr_critic, state_dim=state_dims, action_dim=action_dims
+        ).to(self.actor.device)
         self.actor_target = IKActor(
-            self.open_chain,
-            self.max_action,
-            self.min_variance,
-            self.max_variance,
-            lr,
-            state_dims,
-            action_dims,
-            fc1_dims,
-            fc2_dims,
+            open_chain=self.open_chain,
+            max_action=self.max_action,
+            min_variance=self.min_variance,
+            max_variance=self.max_variance,
+            lr=self.lr_actor,
+            state_dims=state_dims,
+            action_dims=action_dims,
+            fc1_dims=fc1_dims,
+            fc2_dims=fc2_dims,
         )
-        self.critic_target = Critic(lr, state_dims, action_dims).to(self.actor.device)
+        self.critic_target = Critic(
+            lr=self.lr_critic, state_dim=state_dims, action_dim=action_dims
+        ).to(self.actor.device)
         self.replay_buffer = ReplayBuffer()
         self.total_it = 0
         self.policy_freq = policy_freq
@@ -93,15 +99,18 @@ class IKAgent:
         log_prob = self.compute_log_prob(mu_v, var_v, actions_v)
         return actions_v, log_prob
 
-    def train_buffer(self, batch_size=256):
+    def train_buffer(self, jacobian_proportion, batch_size=256):
         self.total_it += 1
         state, action, reward, next_state, done = self.replay_buffer.sample(batch_size)
 
         action = action.to(self.actor.device)
         state = state.to(self.actor.device)
         next_state = next_state.to(self.actor.device)
-        reward = reward.to(self.actor.device).unsqueeze(1)
+        reward = reward.to(self.actor.device)
         done = done.to(self.actor.device)
+
+        self.actor.jacobian_proportion = jacobian_proportion
+        self.actor_target.jacobian_proportion = jacobian_proportion
 
         with torch.no_grad():
             # Select action according to policy and add clipped noise

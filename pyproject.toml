@@ -31,7 +31,7 @@ lightning = "^2.0.2"
 pytorch3d = [
     {url = "https://dl.fbaipublicfiles.com/pytorch3d/packaging/wheels/py310_cu113_pyt1110/pytorch3d-0.7.2-cp310-cp310-linux_x86_64.whl", platform = "linux", python = ">=3.10 <3.11"},
 ]
-pytransform3d = "^3.2.0"
+pytransform3d = "^3.4.0"
 gymnasium = {extras = ["accept-rom-license", "atari"], version = "^0.28.1"}
 gym = "^0.26.2"
 pytest-coverage = "^0.0"

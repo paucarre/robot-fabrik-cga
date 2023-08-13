@@ -80,9 +80,9 @@ class DifferentiableOpenChainMechanism:
 
     def compute_error_pose(self, coords, target_pose):
         current_transformation = self.forward_transformation(coords)
-        target_transoformation = transforms.se3_exp_map(target_pose)
+        target_transformation = transforms.se3_exp_map(target_pose)
         current_trans_to_target = current_transformation.compose(
-            transforms.Transform3d(matrix=target_transoformation).inverse()
+            transforms.Transform3d(matrix=target_transformation).inverse()
         )
         error_pose = transforms.se3_log_map(current_trans_to_target.get_matrix())
         return error_pose
@@ -105,7 +105,7 @@ class DifferentiableOpenChainMechanism:
         parameter_update_rate,
         max_steps=1000,
     ):
-        current_coords = initial_coords
+        current_coords = initial_coords.clone()
         error_pose = self.compute_error_pose(current_coords, target_pose)
         error = DifferentiableOpenChainMechanism.compute_weighted_error(
             error_pose, error_weights
