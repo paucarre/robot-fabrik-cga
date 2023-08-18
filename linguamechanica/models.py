@@ -15,16 +15,20 @@ class IKActor(nn.Module):
         lr,
         state_dims,
         action_dims,
-        fc1_dims=256,
-        fc2_dims=256,
+        fc1_dims=1024,
+        fc2_dims=512,
+        fc3_dims=256,
+        fc4_dims=256,
     ):
         super(IKActor, self).__init__()
         self.open_chain = open_chain
         # Adding 6 for pose and 6 for error pose wrt target
         self.fc1 = nn.Linear(state_dims[0] + 6 + 6, fc1_dims)
         self.fc2 = nn.Linear(fc1_dims, fc2_dims)
-        self.mu = nn.Linear(fc2_dims, sum(action_dims))
-        self.var = nn.Linear(fc2_dims, sum(action_dims))
+        self.fc3 = nn.Linear(fc2_dims, fc3_dims)
+        self.fc4 = nn.Linear(fc3_dims, fc4_dims)
+        self.mu = nn.Linear(fc4_dims, sum(action_dims))
+        self.var = nn.Linear(fc4_dims, sum(action_dims))
         self.max_action = max_action
         self.min_variance = min_variance
         self.max_variance = max_variance
@@ -44,15 +48,19 @@ class IKActor(nn.Module):
         pose = transforms.se3_log_map(transformation.get_matrix())
         x = F.relu(self.fc1(torch.cat([state, pose, error_pose], 1)))
         x = F.relu(self.fc2(x))
+        x = F.relu(self.fc3(x))
+        x = F.relu(self.fc4(x))
         mu = F.tanh(self.mu(x)) * self.max_action
         var = (
             self.min_variance + ((F.tanh(self.var(x)) + 1.0) / 2.0) * self.max_variance
         )
         if self.jacobian_proportion is not None and self.jacobian_proportion > 0.0:
             error_pose = self.open_chain.compute_error_pose(current_coords, target_pose)
+            # TODO: the constant factor should be something else
             jacobian_mu = -0.01 * self.open_chain.inverse_kinematics_step(
                 current_coords, error_pose
             )
+            # TODO: variance should not be fixed to zero
             var = torch.zeros(jacobian_mu.shape).to(jacobian_mu.device)
             mu = (
                 (1.0 - self.jacobian_proportion) * mu
@@ -76,7 +84,7 @@ class DeterministicDiffIKActor(nn.Module):
     def forward(self, state):
         """
         We ignore the current pose from the
-        state as we only carre about the current parameters
+        state as we only care about the current parameters
         """
         target_pose = state[:6]
         current_coords = state[6:]
@@ -89,37 +97,48 @@ class Critic(nn.Module):
     def __init__(self, lr, state_dim, action_dim):
         super(Critic, self).__init__()
         # Q1
-        self.l1 = nn.Linear(sum(state_dim) + sum(action_dim), 256)
-        self.l2 = nn.Linear(256, 256)
-        self.l3 = nn.Linear(256, 1)
-        self.l3.bias.data.fill_(0.0)
-        self.l3.weight.data.fill_(0.0)
+        self.q1_l1 = nn.Linear(sum(state_dim) + sum(action_dim), 1024)
+        self.q1_l2 = nn.Linear(1024, 512)
+        self.q1_l3 = nn.Linear(512, 512)
+        self.q1_l4 = nn.Linear(512, 256)
+        self.q1_l5 = nn.Linear(256, 1)
+        self.q1_l5.bias.data.fill_(0.0)
+        self.q1_l5.weight.data.fill_(0.0)
 
         # Q2
-        self.l4 = nn.Linear(sum(state_dim) + sum(action_dim), 256)
-        self.l5 = nn.Linear(256, 256)
-        self.l6 = nn.Linear(256, 1)
-        self.l6.bias.data.fill_(0.0)
-        self.l6.weight.data.fill_(0.0)
+        self.q2_l1 = nn.Linear(sum(state_dim) + sum(action_dim), 1024)
+        self.q2_l2 = nn.Linear(1024, 512)
+        self.q2_l3 = nn.Linear(512, 512)
+        self.q2_l4 = nn.Linear(512, 256)
+        self.q2_l5 = nn.Linear(256, 1)
+        self.q2_l5.bias.data.fill_(0.0)
+        self.q2_l5.weight.data.fill_(0.0)
 
         self.optimizer = optim.Adam(self.parameters(), lr=lr)
 
     def forward(self, state, action):
         sa = torch.cat([state, action], 1)
 
-        q1 = F.relu(self.l1(sa))
-        q1 = F.relu(self.l2(q1))
-        q1 = -F.relu(self.l3(q1))
+        q1_x = F.relu(self.q1_l1(sa))
+        q1_x = F.relu(self.q1_l2(q1_x))
+        q1_x = F.relu(self.q1_l3(q1_x))
+        q1_x = F.relu(self.q1_l4(q1_x))
+        q1_x = -F.relu(self.q1_l5(q1_x))
 
-        q2 = F.relu(self.l4(sa))
-        q2 = F.relu(self.l5(q2))
-        q2 = -F.relu(self.l6(q2))
-        return q1, q2
+        q2_x = F.relu(self.q2_l1(sa))
+        q2_x = F.relu(self.q2_l2(q2_x))
+        q2_x = F.relu(self.q2_l3(q2_x))
+        q2_x = F.relu(self.q2_l4(q2_x))
+        q2_x = -F.relu(self.q2_l5(q2_x))
+
+        return q1_x, q2_x
 
     def Q1(self, state, action):
         sa = torch.cat([state, action], 1)
 
-        q1 = F.relu(self.l1(sa))
-        q1 = F.relu(self.l2(q1))
-        q1 = -F.relu(self.l3(q1))
-        return q1
+        q1_x = F.relu(self.q1_l1(sa))
+        q1_x = F.relu(self.q1_l2(q1_x))
+        q1_x = F.relu(self.q1_l3(q1_x))
+        q1_x = F.relu(self.q1_l4(q1_x))
+        q1_x = -F.relu(self.q1_l5(q1_x))
+        return q1_x

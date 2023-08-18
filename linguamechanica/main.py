@@ -13,26 +13,32 @@ def eval_policy(agent, weights, eval_episodes=10):
     open_chain = urdf_robot.extract_open_chains(0.3)[-1]
     eval_env = Environment(open_chain, weights)
 
-    avg_reward = 0.0
-    for _ in range(eval_episodes):
+    avg_acc_reward = 0.0
+    initial_rewards = torch.zeros(eval_episodes)
+    final_rewards = torch.zeros(eval_episodes)
+    for idx in range(eval_episodes):
         state, done = eval_env.reset(), False
-        eval_reward = 0.0
+        eval_reward = None
+        reward = None
         while not done:
             action, log_prob = agent.choose_action(np.array(state))
             state, reward, done = eval_env.step(action)
-            eval_reward += reward
-        avg_reward += eval_reward
-    avg_reward /= eval_episodes
+            if eval_reward is None:
+                initial_rewards[idx] = reward
+                eval_reward = reward
+            else:
+                eval_reward += reward
+        final_rewards[idx] = reward
+        avg_acc_reward += eval_reward
+    avg_acc_reward /= eval_episodes
 
-    print("---------------------------------------")
-    print(f"Evaluation over {eval_episodes} episodes: {avg_reward.item():.3f}")
-    print("---------------------------------------")
-    return avg_reward
+    print(f"Evaluation over {eval_episodes} episodes: {avg_acc_reward.item():.3f}")
+    return avg_acc_reward, initial_rewards, final_rewards
 
 
 def main():
-    tensorbard_summary = SummaryWriter()
-
+    summary = SummaryWriter()
+    save_freq = 1000
     urdf_robot = UrdfRobotLibrary.dobot_cr5()
     open_chain = urdf_robot.extract_open_chains(0.3)[-1]
     weights = torch.Tensor([1.0, 1.0, 1.0, 1.0, 1.0, 1.0])
@@ -56,7 +62,7 @@ def main():
     eval_freq = 200
     max_timesteps = 1e6
     start_timesteps = 20  # 00
-    batch_size = 8  # 32#1024
+    batch_size = 16  # 32#1024
     jacobian_proportion = 1.0
     for t in range(int(max_timesteps)):
         # print(f"Current timestamp: {t}")
@@ -96,11 +102,23 @@ def main():
                 f"Total T: {t+1} Episode Num: {episode_num+1} Episode T: {episode_timesteps} Reward: {episode_reward.item():.3f}"
             )
             # Reset environment
-            tensorbard_summary.add_scalar("Reward/train", episode_reward, t)
+            summary.add_scalar("Reward/train", episode_reward, t)
         if (t + 1) % eval_freq == 0 and t >= start_timesteps:
-            average_reward = eval_policy(agent, weights, 2)
-            tensorbard_summary.add_scalar("Reward/evaluation", average_reward, t)
-            tensorbard_summary.add_scalar("Jacobian Proportion", jacobian_proportion, t)
+            avg_acc_reward, initial_rewards, final_rewards = eval_policy(
+                agent, weights, 2
+            )
+            summary.add_scalar("Avg Initial Reward Eval", initial_rewards.mean(), t)
+            summary.add_scalar("Avg Final Reward Eval", final_rewards.mean(), t)
+            summary.add_scalar(
+                "Avg Improved Reward Eval",
+                (final_rewards / (initial_rewards + 1e-10)).mean(),
+                t,
+            )
+            summary.add_scalar("Accumulated Reward Eval", avg_acc_reward, t)
+            summary.add_scalar("Jacobian Proportion", jacobian_proportion, t)
+
+        if (t + 1) % save_freq == 0 and t >= start_timesteps:
+            agent.save(t, f"checkpoint_{t}")
 
         if done:
             state = env.reset()
@@ -108,11 +126,11 @@ def main():
             episode_reward = 0
             episode_timesteps = 0
             episode_num += 1
-        jacobian_proportion -= 1e-6
+        jacobian_proportion -= 1e-5
         jacobian_proportion = max(0.0, jacobian_proportion)
         if jacobian_proportion == 0.0:
             batch_size = 1024
-    tensorbard_summary.close()
+    summary.close()
 
 
 if __name__ == "__main__":

@@ -68,6 +68,17 @@ class IKAgent:
         self.policy_freq = policy_freq
         self.tau = tau
 
+    def save(self, iteration, name):
+        torch.save(
+            {
+                "iteration": iteration,
+                "model_state_dict": self.critic_target.state_dict(),
+                "actor_target": self.actor_target.state_dict(),
+                "actor": self.actor.state_dict(),
+            },
+            f"checkpoints/{name}.pt",
+        )
+
     def store_transition(self, state, action, reward, next_state, done):
         """
         Note that the `replay_buffer` is using a `RoundRobinWriter` and

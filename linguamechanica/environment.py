@@ -90,7 +90,7 @@ class Environment:
         )
         # TODO: add a level, max noise clip and
         # also restrict to constraints
-        # neecessary also be able to have levels....
+        # necessary also be able to have levels....
         noise = torch.randn_like(self.target_parameters)
         noise = noise.clamp(-0.1, 0.1)
         self.current_parameters = (self.target_parameters + (noise)).to(self.device)

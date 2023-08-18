@@ -207,7 +207,7 @@ class DifferentiableOpenChainMechanism:
             transformations.shape[1],
             transformations.shape[2],
         )
-        chains_lenght = transformations.shape[1]
+        chains_length = transformations.shape[1]
         num_chains = transformations.shape[0]
         computed_transforms = transforms.Transform3d(
             matrix=torch.eye(4)
@@ -215,7 +215,7 @@ class DifferentiableOpenChainMechanism:
             .repeat(num_chains, 1, 1)
             .to(coordinates.device)
         )
-        for chain_idx in range(chains_lenght):
+        for chain_idx in range(chains_length):
             current_transformations = transforms.Transform3d(
                 matrix=transformations[:, chain_idx, :, :]
             )
