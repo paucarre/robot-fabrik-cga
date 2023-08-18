@@ -38,6 +38,7 @@ class IKActor(nn.Module):
     def forward(self, state):
         current_coords = state[:, 6:]
         target_pose = state[:, :6]
+        self.open_chain = self.open_chain.to(state.device)
         error_pose = self.open_chain.compute_error_pose(current_coords, target_pose)
         transformation = self.open_chain.forward_transformation(current_coords)
         pose = transforms.se3_log_map(transformation.get_matrix())
@@ -52,7 +53,7 @@ class IKActor(nn.Module):
             jacobian_mu = -0.01 * self.open_chain.inverse_kinematics_step(
                 current_coords, error_pose
             )
-            var = torch.zeros(jacobian_mu.shape)
+            var = torch.zeros(jacobian_mu.shape).to(jacobian_mu.device)
             mu = (
                 (1.0 - self.jacobian_proportion) * mu
             ) + self.jacobian_proportion * jacobian_mu

@@ -72,6 +72,13 @@ class DifferentiableOpenChainMechanism:
         self.screws = screws
         self.initial_matrix = to_left_multiplied(initial_matrix)
         self.joint_limits = joint_limits
+        self.device = screws.device
+        self.initial_matrix = self.initial_matrix.to(self.screws.device)
+
+    def to(self, device):
+        self.screws = self.screws.to(device)
+        self.initial_matrix = self.initial_matrix.to(device)
+        return self
 
     def _jacobian_computation_forward(self, coords):
         transformation = self.forward_transformation(coords)
@@ -84,7 +91,8 @@ class DifferentiableOpenChainMechanism:
         current_trans_to_target = current_transformation.compose(
             transforms.Transform3d(matrix=target_transformation).inverse()
         )
-        error_pose = transforms.se3_log_map(current_trans_to_target.get_matrix())
+        current_matrix = current_trans_to_target.to(coords.device).get_matrix()
+        error_pose = transforms.se3_log_map(current_matrix)
         return error_pose
 
     def compute_weighted_error(error_pose, weights):
@@ -177,6 +185,7 @@ class DifferentiableOpenChainMechanism:
         return jacobian
 
     def forward_transformation(self, coordinates):
+        self.screws = self.screws.to(coordinates.device)
         twist = self.screws * coordinates.unsqueeze(2)
         original_shape = twist.shape
         twist = twist.view(-1, original_shape[2])
@@ -186,7 +195,7 @@ class DifferentiableOpenChainMechanism:
         [
             => The i-th index of the chain
             => The j-th chain ( it can be the same robot 
-              with another pose or differnt robots 
+              with another pose or different robots 
               so long they have the same number of degres of freedom)
             => 4 rows of the left-transformation matrix
             => 4 columns of the left-transformation matrix
@@ -201,7 +210,10 @@ class DifferentiableOpenChainMechanism:
         chains_lenght = transformations.shape[1]
         num_chains = transformations.shape[0]
         computed_transforms = transforms.Transform3d(
-            matrix=torch.eye(4).unsqueeze(0).repeat(num_chains, 1, 1)
+            matrix=torch.eye(4)
+            .unsqueeze(0)
+            .repeat(num_chains, 1, 1)
+            .to(coordinates.device)
         )
         for chain_idx in range(chains_lenght):
             current_transformations = transforms.Transform3d(

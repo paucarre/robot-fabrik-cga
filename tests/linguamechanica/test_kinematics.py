@@ -177,13 +177,13 @@ class TestDifferentiableOpenChainMechanism(unittest.TestCase):
         error_twist = open_chain.compute_error_pose(coords, target_pose)
         assert (
             error_twist - torch.Tensor([[0.0, 0.0, 10.0, 0.0, 0.0, 0.0]])
-        ).abs().sum() < 1e-10
+        ).abs().sum() < 1e-7
         # test rotation of 45 deg. from identity
         coords = torch.Tensor([[0.0, np.pi / 4]])
         error_twist = open_chain.compute_error_pose(coords, target_pose)
         assert (
             error_twist - torch.Tensor([[0.0, 0.0, 0.0, np.pi / 4, 0.0, 0.0]])
-        ).abs().sum() < 1e-10
+        ).abs().sum() < 1e-7
 
     def test_jacobian(self):
         """

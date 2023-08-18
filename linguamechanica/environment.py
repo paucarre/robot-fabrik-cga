@@ -27,6 +27,10 @@ class Environment:
         self.action_dims = np.zeros(6).shape
         self.current_step = 0
         self.max_steps_done = max_steps_done
+        # TODO: make this nicer
+        self.device = "cuda:0"
+        self.open_chain = self.open_chain.to(self.device)
+        self.weights = self.weights.to(self.device)
 
     def uniformly_sample_parameters_within_constraints(self):
         coordinates = []
@@ -38,7 +42,7 @@ class Environment:
                     self.open_chain.joint_limits[i][1],
                 )
             )
-        return torch.Tensor(coordinates).unsqueeze(0)
+        return torch.Tensor(coordinates).unsqueeze(0).to(self.device)
 
     def observation_to_tensor(self, observation):
         observation_tensor = torch.zeros(self.observation_space.shape)
@@ -89,7 +93,7 @@ class Environment:
         # neecessary also be able to have levels....
         noise = torch.randn_like(self.target_parameters)
         noise = noise.clamp(-0.1, 0.1)
-        self.current_parameters = self.target_parameters + (noise)
+        self.current_parameters = (self.target_parameters + (noise)).to(self.device)
         # self.uniformly_sample_parameters_within_constraints()
         observation = self.generate_observation()
         self.current_step = 0
@@ -115,7 +119,7 @@ class Environment:
         instance, the revolute joints will go from (-pi, pi)
         or (0, 2 * pi).
         """
-        self.current_parameters[:, :] += action[:, :].cpu()
+        self.current_parameters[:, :] += action[:, :]
         # self.current_parameter_index = (self.current_parameter_index + 1) % len(
         #    self.open_chain
         # )
