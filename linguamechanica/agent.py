@@ -68,16 +68,29 @@ class IKAgent:
         self.policy_freq = policy_freq
         self.tau = tau
 
-    def save(self, iteration, name):
-        torch.save(
+    def save(self, iteration, training_state, name):
+        training_state_dict = asdict(training_state)
+        model_dictionary = (
             {
-                "iteration": iteration,
-                "model_state_dict": self.critic_target.state_dict(),
+                "critic_target": self.critic_target.state_dict(),
+                "critic": self.critic.state_dict(),
                 "actor_target": self.actor_target.state_dict(),
                 "actor": self.actor.state_dict(),
             },
-            f"checkpoints/{name}.pt",
         )
+
+        torch.save(
+            training_state_dict | model_dictionary,
+            f"checkpoints_{name}.pt",
+        )
+
+    def load(self, name):
+        data = torch.load(f"checkpoints_{name}.pt")
+        self.critic_target.load_state_dict(data["critic_target"])
+        self.critic.load_state_dict(data["critic"])
+        self.actor.load_state_dict(data["actor"])
+        self.actor_target.load_state_dict(data["actor_target"])
+        return data
 
     def store_transition(self, state, action, reward, next_state, done):
         """
@@ -110,9 +123,11 @@ class IKAgent:
         log_prob = self.compute_log_prob(mu_v, var_v, actions_v)
         return actions_v, log_prob
 
-    def train_buffer(self, jacobian_proportion, batch_size=256):
+    def train_buffer(self, training_state, summary):
         self.total_it += 1
-        state, action, reward, next_state, done = self.replay_buffer.sample(batch_size)
+        state, action, reward, next_state, done = self.replay_buffer.sample(
+            training_state.batch_size
+        )
 
         action = action.to(self.actor.device)
         state = state.to(self.actor.device)
@@ -120,8 +135,8 @@ class IKAgent:
         reward = reward.to(self.actor.device)
         done = done.to(self.actor.device)
 
-        self.actor.jacobian_proportion = jacobian_proportion
-        self.actor_target.jacobian_proportion = jacobian_proportion
+        self.actor.jacobian_proportion = training_state.jacobian_proportion
+        self.actor_target.jacobian_proportion = training_state.jacobian_proportion
 
         with torch.no_grad():
             # Select action according to policy and add clipped noise
@@ -147,6 +162,11 @@ class IKAgent:
         critic_loss = F.mse_loss(current_Q1, target_Q) + F.mse_loss(
             current_Q2, target_Q
         )
+        summary.add_scalar(
+            "Critic Loss (Q1 + Q2)",
+            critic_loss,
+            training_state.t,
+        )
 
         critic_loss.backward()
         self.critic.optimizer.step()
@@ -164,6 +184,11 @@ class IKAgent:
             """
             actor_loss = -self.critic.Q1(state, mu).mean()
             actor_loss.backward()
+            summary.add_scalar(
+                "Actor Loss",
+                actor_loss,
+                training_state.t,
+            )
             self.actor.optimizer.step()
 
             # Update the frozen target models
