@@ -1,2 +1,2 @@
 #!/bin/bash
-python -m linguamechanica.main
+python -m linguamechanica.train

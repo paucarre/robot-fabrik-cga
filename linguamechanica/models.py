@@ -32,12 +32,14 @@ class IKActor(nn.Module):
         self.max_action = max_action
         self.min_variance = min_variance
         self.max_variance = max_variance
+        nn.init.normal_(self.mu.weight.data, mean=0.0, std=1e-5)
+        nn.init.normal_(self.mu.bias.data, mean=0.0, std=1e-5)
+        # NOTE: MAKE SURE THIS IS THE LAST LINE !!
         self.optimizer = optim.Adam(self.parameters(), lr=lr)
+        #TODO: this should be more elegant
         self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
         self.to(self.device)
         self.jacobian_proportion = 1.0
-        self.mu.bias.data.fill_(0.0)
-        self.mu.weight.data.fill_(0.0)
 
     def forward(self, state):
         current_coords = state[:, 6:]
@@ -102,8 +104,8 @@ class Critic(nn.Module):
         self.q1_l3 = nn.Linear(512, 512)
         self.q1_l4 = nn.Linear(512, 256)
         self.q1_l5 = nn.Linear(256, 1)
-        self.q1_l5.bias.data.fill_(0.0)
-        self.q1_l5.weight.data.fill_(0.0)
+        nn.init.normal_(self.q1_l5.weight.data, mean=0.0, std=1e-1)
+        nn.init.normal_(self.q1_l5.bias.data, mean=0.0, std=1e-1)
 
         # Q2
         self.q2_l1 = nn.Linear(sum(state_dim) + sum(action_dim), 1024)
@@ -111,9 +113,10 @@ class Critic(nn.Module):
         self.q2_l3 = nn.Linear(512, 512)
         self.q2_l4 = nn.Linear(512, 256)
         self.q2_l5 = nn.Linear(256, 1)
-        self.q2_l5.bias.data.fill_(0.0)
-        self.q2_l5.weight.data.fill_(0.0)
+        nn.init.normal_(self.q2_l5.weight.data, mean=0.0, std=1e-1)
+        nn.init.normal_(self.q2_l5.bias.data, mean=0.0, std=1e-1)
 
+        # NOTE: MAKE SURE THIS IS THE LAST LINE !!
         self.optimizer = optim.Adam(self.parameters(), lr=lr)
 
     def forward(self, state, action):

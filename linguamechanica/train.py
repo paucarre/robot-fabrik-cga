@@ -11,18 +11,25 @@ from dataclasses import dataclass
 class TrainingState:
     save_freq: int = 1000
     lr_actor: float = 0.0001
-    lr_critic: float = 0.05
+    lr_critic: float = 0.0001
     gamma: float = 0.99
-    policy_freq: int = 16
+    policy_freq: int = 8
     tau: float = 0.05
     eval_freq: int = 200
     max_timesteps: float = 1e6
     start_timesteps: int = 20
-    batch_size: int = 32
+    batch_size_non_jacobian: int = 1024  # 32
+    batch_size_jacobian: int = 32
+    batch_size_only_critic = 16
     jacobian_reduction: float = 1e-4
     t: int = 0
+    batch_size: int = 1024
     jacobian_proportion: float = 1.0
     weights = torch.Tensor([1.0, 1.0, 1.0, 1.0, 1.0, 1.0])
+    actor_training_starts_at_iteration = 300
+    # Initially actor training is disable only the critic
+    # is trained because the actor only uses the jacobian
+    actor_training_enabled = False
 
     def can_save(self):
         return (self.t + 1) % self.save_freq == 0 and self.t >= self.start_timesteps
@@ -31,10 +38,22 @@ class TrainingState:
         return (self.t + 1) % self.eval_freq == 0 and self.t >= self.start_timesteps
 
     def jacobian_proportion_step(self):
-        self.jacobian_proportion -= self.jacobian_reduction
-        self.jacobian_proportion = max(0.0, self.jacobian_proportion)
-        if self.jacobian_proportion == 0.0:
-            self.batch_size = 1024
+        if self.t >= self.actor_training_starts_at_iteration:
+            # critic and actor trained
+            self.jacobian_proportion -= self.jacobian_reduction
+            self.jacobian_proportion = max(0.0, self.jacobian_proportion)
+            if self.jacobian_proportion == 0.0:
+                # jacobian disabled / only actor
+                self.batch_size = self.batch_size_non_jacobian
+            else:
+                # jacobian and actor
+                self.batch_size = self.batch_size_jacobian
+            self.actor_training_enabled = True
+        else:
+            # only critc is trained
+            self.batch_size = self.batch_size_only_critic
+            # agent.actor_training_enabled = actor_training_enabled
+            # agent.policy_freq = policy_freq
 
 
 @dataclass
@@ -103,7 +122,7 @@ def summary_done(summary, training_state, episode):
     summary.add_scalar("Reward/train", episode.reward, training_state.t)
 
 
-def main():
+def train():
     summary = SummaryWriter()
     urdf_robot = UrdfRobotLibrary.dobot_cr5()
     open_chain = urdf_robot.extract_open_chains(0.3)[-1]
@@ -167,9 +186,7 @@ def main():
             )
 
         if training_state.can_save():
-            agent.save(
-                training_state.t, training_state, f"checkpoint_{training_state.t + 1}"
-            )
+            agent.save(training_state)
 
         if done:
             final_reward = reward
@@ -189,4 +206,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    train()

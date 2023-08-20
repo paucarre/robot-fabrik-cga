@@ -3,6 +3,7 @@ import torch.nn.functional as F
 import math
 from linguamechanica.models import IKActor, Critic
 from torchrl.data import ReplayBuffer
+from dataclasses import asdict
 
 
 class IKAgent:
@@ -68,20 +69,17 @@ class IKAgent:
         self.policy_freq = policy_freq
         self.tau = tau
 
-    def save(self, iteration, training_state, name):
+    def save(self, training_state):
         training_state_dict = asdict(training_state)
-        model_dictionary = (
-            {
-                "critic_target": self.critic_target.state_dict(),
-                "critic": self.critic.state_dict(),
-                "actor_target": self.actor_target.state_dict(),
-                "actor": self.actor.state_dict(),
-            },
-        )
-
+        model_dictionary = {
+            "critic_target": self.critic_target.state_dict(),
+            "critic": self.critic.state_dict(),
+            "actor_target": self.actor_target.state_dict(),
+            "actor": self.actor.state_dict(),
+        }
         torch.save(
             training_state_dict | model_dictionary,
-            f"checkpoints_{name}.pt",
+            f"checkpoints/{training_state.t + 1}.pt",
         )
 
     def load(self, name):
@@ -172,7 +170,10 @@ class IKAgent:
         self.critic.optimizer.step()
 
         # Delayed policy updates
-        if self.total_it % self.policy_freq == 0:
+        if (
+            self.total_it % self.policy_freq == 0
+            and training_state.actor_training_enabled
+        ):
             # Optimize the actor
             self.actor.optimizer.zero_grad()
             # Compute actor losse
@@ -183,14 +184,15 @@ class IKAgent:
                 #actor_loss = -log_prob * delta
             """
             actor_loss = -self.critic.Q1(state, mu).mean()
-            actor_loss.backward()
             summary.add_scalar(
                 "Actor Loss",
                 actor_loss,
                 training_state.t,
             )
+            actor_loss.backward()
             self.actor.optimizer.step()
 
+        if self.total_it % self.policy_freq == 0:
             # Update the frozen target models
             for param, target_param in zip(
                 self.critic.parameters(), self.critic_target.parameters()

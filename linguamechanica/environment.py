@@ -106,7 +106,8 @@ class Environment:
         pose_error = DifferentiableOpenChainMechanism.compute_weighted_error(
             error_pose, self.weights
         )
-        done = pose_error < 1e-1
+        # TODO: use a better threshold
+        done = pose_error < 1e-5
         return -pose_error, done
 
     def step(self, action):

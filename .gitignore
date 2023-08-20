@@ -1,4 +1,5 @@
 .vscode
+checkpoints
 runs
 poetry.lock
 build
