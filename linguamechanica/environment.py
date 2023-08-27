@@ -7,7 +7,7 @@ from linguamechanica.kinematics import DifferentiableOpenChainMechanism
 
 
 class Environment:
-    def __init__(self, open_chain, weights, max_steps_done=200):
+    def __init__(self, open_chain, weights, max_steps_done):
         self.open_chain = open_chain
         """
         State dims should be for now:
@@ -82,18 +82,22 @@ class Environment:
 
     def reset(self):
         self.target_parameters = self.uniformly_sample_parameters_within_constraints()
+        self.force_parameters_within_bounds(self.target_parameters)
         self.target_transformation = self.open_chain.forward_transformation(
             self.target_parameters
         )
         self.target_pose = transforms.se3_log_map(
             self.target_transformation.get_matrix()
         )
-        # TODO: add a level, max noise clip and
-        # also restrict to constraints
-        # necessary also be able to have levels....
-        noise = torch.randn_like(self.target_parameters)
-        noise = noise.clamp(-0.1, 0.1)
+        # TODO:
+        # - Add a level which modulates upwards the noise
+        # - Constraint values to the actuator constraints
+        # The higher the level is, the higher the noise
+        # so that the network learns to solve harder problems
+        noise = torch.randn_like(self.target_parameters) * 0.001
+        noise = noise.clamp(-0.01, 0.01)
         self.current_parameters = (self.target_parameters + (noise)).to(self.device)
+        self.force_parameters_within_bounds(self.current_parameters)
         # self.uniformly_sample_parameters_within_constraints()
         observation = self.generate_observation()
         self.current_step = 0
@@ -107,8 +111,14 @@ class Environment:
             error_pose, self.weights
         )
         # TODO: use a better threshold
-        done = pose_error < 1e-5
+        done = 1 if pose_error < 1e-3 else 0
         return -pose_error, done
+
+    def force_parameters_within_bounds(self, params):
+        bigger_than_pi = params[:, :] > math.pi
+        params[bigger_than_pi] = params[bigger_than_pi] - (2.0 * math.pi)
+        less_than_minus_pi = params[:, :] < -math.pi
+        params[less_than_minus_pi] = params[less_than_minus_pi] + (2.0 * math.pi)
 
     def step(self, action):
         self.current_step += 1
@@ -121,6 +131,7 @@ class Environment:
         or (0, 2 * pi).
         """
         self.current_parameters[:, :] += action[:, :]
+        self.force_parameters_within_bounds(self.current_parameters)
         # self.current_parameter_index = (self.current_parameter_index + 1) % len(
         #    self.open_chain
         # )

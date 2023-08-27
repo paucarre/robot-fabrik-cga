@@ -1,79 +1,19 @@
-import numpy as np
 import torch
 from linguamechanica.kinematics import UrdfRobotLibrary
 from linguamechanica.environment import Environment
 from linguamechanica.agent import IKAgent
 from torch.utils.tensorboard import SummaryWriter
-from dataclasses import dataclass
-
-
-@dataclass
-class TrainingState:
-    save_freq: int = 1000
-    lr_actor: float = 0.0001
-    lr_critic: float = 0.0001
-    gamma: float = 0.99
-    policy_freq: int = 8
-    tau: float = 0.05
-    eval_freq: int = 200
-    max_timesteps: float = 1e6
-    start_timesteps: int = 20
-    batch_size_non_jacobian: int = 1024  # 32
-    batch_size_jacobian: int = 32
-    batch_size_only_critic = 16
-    jacobian_reduction: float = 1e-4
-    t: int = 0
-    batch_size: int = 1024
-    jacobian_proportion: float = 1.0
-    weights = torch.Tensor([1.0, 1.0, 1.0, 1.0, 1.0, 1.0])
-    actor_training_starts_at_iteration = 300
-    # Initially actor training is disable only the critic
-    # is trained because the actor only uses the jacobian
-    actor_training_enabled = False
-
-    def can_save(self):
-        return (self.t + 1) % self.save_freq == 0 and self.t >= self.start_timesteps
-
-    def can_eval_policy(self):
-        return (self.t + 1) % self.eval_freq == 0 and self.t >= self.start_timesteps
-
-    def jacobian_proportion_step(self):
-        if self.t >= self.actor_training_starts_at_iteration:
-            # critic and actor trained
-            self.jacobian_proportion -= self.jacobian_reduction
-            self.jacobian_proportion = max(0.0, self.jacobian_proportion)
-            if self.jacobian_proportion == 0.0:
-                # jacobian disabled / only actor
-                self.batch_size = self.batch_size_non_jacobian
-            else:
-                # jacobian and actor
-                self.batch_size = self.batch_size_jacobian
-            self.actor_training_enabled = True
-        else:
-            # only critc is trained
-            self.batch_size = self.batch_size_only_critic
-            # agent.actor_training_enabled = actor_training_enabled
-            # agent.policy_freq = policy_freq
-
-
-@dataclass
-class EpisodeState:
-    reward = 0
-    timesteps = 0
-    num = 0
-
-    def create_new(self):
-        self.reward = 0
-        self.timesteps = 0
-        self.num += 1
+from linguamechanica.training_context import EpisodeState, TrainingState
 
 
 # Runs policy for X episodes and returns average reward
 # A fixed seed is used for the eval environment
-def eval_policy(agent, weights, eval_episodes=10):
+def eval_policy(agent, training_state, eval_episodes=10):
     urdf_robot = UrdfRobotLibrary.dobot_cr5()
     open_chain = urdf_robot.extract_open_chains(0.3)[-1]
-    eval_env = Environment(open_chain, weights)
+    eval_env = Environment(
+        open_chain, training_state.weights, training_state.max_steps_done
+    )
 
     avg_acc_reward = 0.0
     initial_rewards = torch.zeros(eval_episodes)
@@ -83,7 +23,7 @@ def eval_policy(agent, weights, eval_episodes=10):
         eval_reward = None
         reward = None
         while not done:
-            action, log_prob = agent.choose_action(np.array(state))
+            action, log_prob, _, _ = agent.choose_action(state, training_state)
             state, reward, done = eval_env.step(action)
             if eval_reward is None:
                 initial_rewards[idx] = reward
@@ -109,9 +49,6 @@ def summary_evaluatation(
         training_state.t,
     )
     summary.add_scalar("Accumulated Reward Eval", avg_acc_reward, training_state.t)
-    summary.add_scalar(
-        "Jacobian Proportion", training_state.jacobian_proportion, training_state.t
-    )
 
 
 def summary_done(summary, training_state, episode):
@@ -129,9 +66,10 @@ def train():
     # TODO: place all these constants as arguments
 
     training_state = TrainingState()
-    env = Environment(open_chain, training_state.weights)
+    env = Environment(open_chain, training_state.weights, training_state.max_steps_done)
     agent = IKAgent(
         open_chain=open_chain,
+        summary=summary,
         lr_actor=training_state.lr_actor,
         lr_critic=training_state.lr_critic,
         state_dims=(env.observation_space.shape),
@@ -139,6 +77,10 @@ def train():
         gamma=training_state.gamma,
         policy_freq=training_state.policy_freq,
         tau=training_state.tau,
+        max_action=training_state.max_action,
+        min_variance=training_state.min_variance,
+        max_variance=training_state.max_variance,
+        replay_buffer_max_size=training_state.replay_buffer_max_size,
     )
     episode = EpisodeState()
     state, done = env.reset(), False
@@ -146,19 +88,35 @@ def train():
     # agent.load(f"checkpoint_46999")
 
     for training_state.t in range(training_state.t, int(training_state.max_timesteps)):
-        # print(f"Current timestamp: {t}")
         episode.timesteps += 1
-        # Select action randomly or according to policy
-        if training_state.t < training_state.start_timesteps:
-            action = env.sample_random_action()
-        else:
-            action, log_prob = agent.choose_action(np.array(state))
+        # if training_state.use_actor_for_data_generation():
+        action, log_prob, mu_v, var_v = agent.choose_action(state, training_state)
+        summary.add_scalar(
+            "Data Generation Action Mean",
+            action.mean(),
+            training_state.t,
+        )
+        summary.add_scalar(
+            "Data Generation Action Std",
+            action.std(),
+            training_state.t,
+        )
+        summary.add_scalar(
+            "Data Generation Mean",
+            mu_v.mean(),
+            training_state.t,
+        )
+        summary.add_scalar(
+            "Data Generation Variance",
+            var_v.std(),
+            training_state.t,
+        )
+        # else:
+        # action = env.sample_noisy_jacobian_action()
+        # action = env.sample_random_action()
 
         # Perform action
         next_state, reward, done = env.step(action)
-        # TODO: I think this should be in the environment, I see no reason
-        # why this should be kept here
-        done = float(done) if episode.timesteps < env.max_steps_done else 1
         agent.store_transition(
             state=state.detach().cpu(),
             action=action[0, :].detach().cpu(),
@@ -172,14 +130,13 @@ def train():
         if initial_reward is None:
             initial_reward = reward
 
-        # Train agent after collecting sufficient data
-        if training_state.t >= training_state.start_timesteps:
-            agent.train_buffer(training_state, summary)
-        if done and training_state.t >= training_state.start_timesteps:
+        if training_state.can_train_buffer():
+            agent.train_buffer(training_state)
+        if done and training_state.can_train_buffer():
             summary_done(summary, training_state, episode)
         if training_state.can_eval_policy():
             avg_acc_reward, initial_rewards, final_rewards = eval_policy(
-                agent, training_state.weights, 2
+                agent, training_state, 2
             )
             summary_evaluatation(
                 summary, initial_rewards, final_rewards, avg_acc_reward, training_state
@@ -199,8 +156,6 @@ def train():
             initial_reward = None
             done = False
             episode.create_new()
-
-        training_state.jacobian_proportion_step()
 
     summary.close()
 

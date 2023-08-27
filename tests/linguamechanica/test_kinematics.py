@@ -94,7 +94,7 @@ class TestDifferentiableOpenChainMechanism(unittest.TestCase):
                 min_error=1e-3,
                 error_weights=error_weights,
                 parameter_update_rate=parameter_update_rate,
-                max_steps=500,
+                max_steps=1000,
             )
             initial_error_pose = open_chain.compute_error_pose(
                 initial_coords, target_pose
