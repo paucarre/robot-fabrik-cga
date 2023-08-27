@@ -6,6 +6,13 @@ import math
 from linguamechanica.kinematics import DifferentiableOpenChainMechanism
 
 
+def force_parameters_within_bounds(params):
+    bigger_than_pi = params[:, :] > math.pi
+    params[bigger_than_pi] = params[bigger_than_pi] - (2.0 * math.pi)
+    less_than_minus_pi = params[:, :] < -math.pi
+    params[less_than_minus_pi] = params[less_than_minus_pi] + (2.0 * math.pi)
+
+
 class Environment:
     def __init__(self, open_chain, weights, max_steps_done):
         self.open_chain = open_chain
@@ -82,7 +89,7 @@ class Environment:
 
     def reset(self):
         self.target_parameters = self.uniformly_sample_parameters_within_constraints()
-        self.force_parameters_within_bounds(self.target_parameters)
+        force_parameters_within_bounds(self.target_parameters)
         self.target_transformation = self.open_chain.forward_transformation(
             self.target_parameters
         )
@@ -97,7 +104,7 @@ class Environment:
         noise = torch.randn_like(self.target_parameters) * 0.001
         noise = noise.clamp(-0.01, 0.01)
         self.current_parameters = (self.target_parameters + (noise)).to(self.device)
-        self.force_parameters_within_bounds(self.current_parameters)
+        force_parameters_within_bounds(self.current_parameters)
         # self.uniformly_sample_parameters_within_constraints()
         observation = self.generate_observation()
         self.current_step = 0
@@ -114,12 +121,6 @@ class Environment:
         done = 1 if pose_error < 1e-3 else 0
         return -pose_error, done
 
-    def force_parameters_within_bounds(self, params):
-        bigger_than_pi = params[:, :] > math.pi
-        params[bigger_than_pi] = params[bigger_than_pi] - (2.0 * math.pi)
-        less_than_minus_pi = params[:, :] < -math.pi
-        params[less_than_minus_pi] = params[less_than_minus_pi] + (2.0 * math.pi)
-
     def step(self, action):
         self.current_step += 1
         # print(f"Action {action}, {self.current_parameter_index}")
@@ -131,7 +132,7 @@ class Environment:
         or (0, 2 * pi).
         """
         self.current_parameters[:, :] += action[:, :]
-        self.force_parameters_within_bounds(self.current_parameters)
+        force_parameters_within_bounds(self.current_parameters)
         # self.current_parameter_index = (self.current_parameter_index + 1) % len(
         #    self.open_chain
         # )

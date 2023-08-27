@@ -34,7 +34,7 @@ def to_left_multiplied(right_multiplied):
     ]
     """
     shape = right_multiplied.shape
-    left_multiplied = right_multiplied.clone()
+    left_multiplied = right_multiplied.detach().clone()
     if len(shape) == 3:
         left_multiplied = left_multiplied.transpose(1, 2)
         left_multiplied[:, 0:3, 0:3] = right_multiplied[:, 0:3, 0:3].transpose(1, 2)
@@ -48,7 +48,7 @@ class KinematicsNetwork(nn.Module):
     def __init__(self, initial_coords, chain, error_weights, lr=0.001):
         super(KinematicsNetwork, self).__init__()
         self.chain = chain
-        self.coords = nn.Parameter(initial_coords.clone())
+        self.coords = nn.Parameter(initial_coords.detach().clone())
         self.error_weights = error_weights
         self.optimizer = optim.Adam(self.parameters(), lr=lr)
         self.loss = None
@@ -113,7 +113,7 @@ class DifferentiableOpenChainMechanism:
         parameter_update_rate,
         max_steps=1000,
     ):
-        current_coords = initial_coords.clone()
+        current_coords = initial_coords.detach().clone()
         error_pose = self.compute_error_pose(current_coords, target_pose)
         error = DifferentiableOpenChainMechanism.compute_weighted_error(
             error_pose, error_weights

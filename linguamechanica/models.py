@@ -1,8 +1,38 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-import torch.optim as optim
 from pytorch3d import transforms
+from linguamechanica.environment import force_parameters_within_bounds
+
+
+def get_pose_and_pose_error(state, open_chain):
+    current_coords = state[:, 6:]
+    target_pose = state[:, :6]
+    open_chain = open_chain.to(state.device)
+    error_pose = open_chain.compute_error_pose(current_coords, target_pose)
+    transformation = open_chain.forward_transformation(current_coords)
+    pose = transforms.se3_log_map(transformation.get_matrix())
+    return pose, error_pose
+
+
+def add_kinematics_to_state_embedding(state, open_chain):
+    target_pose = state[:, :6]
+    pose, pose_error = get_pose_and_pose_error(state, open_chain)
+    return torch.cat([target_pose, pose, pose_error], 1)
+
+
+def add_kinematics_to_state_action_embedding(state, action, open_chain):
+    target_pose = state[:, :6]
+    pose, pose_error = get_pose_and_pose_error(state, open_chain)
+    new_state = state.detach().clone()
+    new_state[:, 6:] += action
+    force_parameters_within_bounds(new_state)
+    pose_with_action, pose_error_with_action = get_pose_and_pose_error(
+        new_state, open_chain
+    )
+    return torch.cat(
+        [target_pose, pose, pose_error, pose_with_action, pose_error_with_action], 1
+    )
 
 
 class IKActor(nn.Module):
@@ -23,7 +53,8 @@ class IKActor(nn.Module):
         super(IKActor, self).__init__()
         self.open_chain = open_chain
         # Adding 6 for pose and 6 for error pose wrt target
-        self.fc1 = nn.Linear(state_dims[0] + 6 + 6, fc1_dims)
+        input_dim = 6 * 3
+        self.fc1 = nn.Linear(input_dim, fc1_dims)
         self.fc2 = nn.Linear(fc1_dims, fc2_dims)
         # self.fc3 = nn.Linear(fc2_dims, fc3_dims)
         # self.fc4 = nn.Linear(fc3_dims, fc4_dims)
@@ -38,20 +69,13 @@ class IKActor(nn.Module):
         nn.init.normal_(self.mu.bias.data, mean=0.0, std=1e-5)
         nn.init.normal_(self.scale.weight.data, mean=0.0, std=1e-5)
         nn.init.normal_(self.scale.bias.data, mean=0.0, std=1e-5)
-        # NOTE: MAKE SURE THIS IS THE LAST LINE !!
-        self.optimizer = optim.Adam(self.parameters(), lr=lr)
         # TODO: this should be more elegant
         self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
         self.to(self.device)
 
     def forward(self, state):
-        current_coords = state[:, 6:]
-        target_pose = state[:, :6]
-        self.open_chain = self.open_chain.to(state.device)
-        error_pose = self.open_chain.compute_error_pose(current_coords, target_pose)
-        transformation = self.open_chain.forward_transformation(current_coords)
-        pose = transforms.se3_log_map(transformation.get_matrix())
-        x = F.relu(self.fc1(torch.cat([state, pose, error_pose], 1)))
+        kinematic_embedding = add_kinematics_to_state_embedding(state, self.open_chain)
+        x = F.relu(self.fc1(kinematic_embedding))
         x = F.relu(self.fc2(x))
         # x = F.relu(self.fc3(x))
         # x = F.relu(self.fc4(x))
@@ -95,10 +119,11 @@ class PseudoinvJacobianIKActor(nn.Module):
 
 
 class Critic(nn.Module):
-    def __init__(self, lr, state_dim, action_dim):
+    def __init__(self, lr, state_dims, action_dims, open_chain):
         super(Critic, self).__init__()
+        input_dim = 6 * 5
         # Q1
-        self.q1_l1 = nn.Linear(sum(state_dim) + sum(action_dim), 1024)
+        self.q1_l1 = nn.Linear(input_dim, 1024)
         self.q1_l2 = nn.Linear(1024, 256)
         # self.q1_l3 = nn.Linear(512, 512)
         # self.q1_l4 = nn.Linear(512, 256)
@@ -107,7 +132,7 @@ class Critic(nn.Module):
         nn.init.normal_(self.q1_l5.bias.data, mean=0.0, std=1e-5)
 
         # Q2
-        self.q2_l1 = nn.Linear(sum(state_dim) + sum(action_dim), 1024)
+        self.q2_l1 = nn.Linear(input_dim, 1024)
         self.q2_l2 = nn.Linear(1024, 256)
         # self.q2_l3 = nn.Linear(512, 512)
         # self.q2_l4 = nn.Linear(512, 256)
@@ -115,19 +140,20 @@ class Critic(nn.Module):
         nn.init.normal_(self.q2_l5.weight.data, mean=0.0, std=1e-5)
         nn.init.normal_(self.q2_l5.bias.data, mean=0.0, std=1e-5)
 
-        # NOTE: MAKE SURE THIS IS THE LAST LINE !!
-        self.optimizer = optim.Adam(self.parameters(), lr=lr)
+        self.open_chain = open_chain
 
     def forward(self, state, action):
-        sa = torch.cat([state, action], 1)
+        kinematic_action_embedding = add_kinematics_to_state_action_embedding(
+            state, action, self.open_chain
+        )
 
-        q1_x = F.relu(self.q1_l1(sa))
+        q1_x = F.relu(self.q1_l1(kinematic_action_embedding))
         q1_x = F.relu(self.q1_l2(q1_x))
         # q1_x = F.relu(self.q1_l3(q1_x))
         # q1_x = F.relu(self.q1_l4(q1_x))
         q1_x = -F.relu(self.q1_l5(q1_x))
 
-        q2_x = F.relu(self.q2_l1(sa))
+        q2_x = F.relu(self.q2_l1(kinematic_action_embedding))
         q2_x = F.relu(self.q2_l2(q2_x))
         # q2_x = F.relu(self.q2_l3(q2_x))
         # q2_x = F.relu(self.q2_l4(q2_x))
@@ -136,9 +162,11 @@ class Critic(nn.Module):
         return q1_x, q2_x
 
     def Q1(self, state, action):
-        sa = torch.cat([state, action], 1)
+        kinematic_action_embedding = add_kinematics_to_state_action_embedding(
+            state, action, self.open_chain
+        )
 
-        q1_x = F.relu(self.q1_l1(sa))
+        q1_x = F.relu(self.q1_l1(kinematic_action_embedding))
         q1_x = F.relu(self.q1_l2(q1_x))
         # q1_x = F.relu(self.q1_l3(q1_x))
         # q1_x = F.relu(self.q1_l4(q1_x))

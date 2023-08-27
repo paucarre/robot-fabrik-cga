@@ -17,14 +17,14 @@ class TrainingState:
     qlearning_batch_size: int = 1024  # 32
     batch_size_jacobian: int = 32
     jacobian_batch_size = 16
-    min_variance: int = 0.00001
-    max_variance: int = 0.00001
+    min_variance: int = 0.000001
+    max_variance: int = 0.000001
     t: int = 0
     weights = torch.Tensor([1.0, 1.0, 1.0, 1.0, 1.0, 1.0])
     # NOTE: it should have enough iterations for the replay buffer
     # to have enough data to train the actor
     # actor_qlearning_training_starts_at_iteration = 2000
-    jacobian_learning_iterations = 1000  # 20000
+    jacobian_learning_iterations = 0  # 20000
     # Initially actor training is disable only the critic
     # is trained because the actor only uses the jacobian
     # actor_training_enabled: bool = False

@@ -4,7 +4,15 @@ import math
 from linguamechanica.models import IKActor, Critic, PseudoinvJacobianIKActor
 from torchrl.data import ReplayBuffer
 from dataclasses import asdict
+import torch.optim as optim
 from torchrl.data.replay_buffers import ListStorage
+from enum import Enum
+from enum import auto
+
+
+class AgentState(Enum):
+    JACBOBIAN_TRANING = auto()
+    QLEARNING_TRANING = auto()
 
 
 class IKAgent:
@@ -50,7 +58,10 @@ class IKAgent:
             fc2_dims=fc2_dims,
         )
         self.critic = Critic(
-            lr=lr_critic, state_dim=state_dims, action_dim=action_dims
+            lr=lr_critic,
+            state_dims=state_dims,
+            action_dims=action_dims,
+            open_chain=open_chain,
         ).to(self.actor.device)
         self.actor_target = IKActor(
             open_chain=self.open_chain,
@@ -67,7 +78,10 @@ class IKAgent:
             self.actor.device
         )
         self.critic_target = Critic(
-            lr=self.lr_critic, state_dim=state_dims, action_dim=action_dims
+            lr=lr_critic,
+            state_dims=state_dims,
+            action_dims=action_dims,
+            open_chain=open_chain,
         ).to(self.actor.device)
         self.replay_buffer = ReplayBuffer(
             storage=ListStorage(max_size=replay_buffer_max_size)
@@ -75,6 +89,14 @@ class IKAgent:
         self.total_it = 0
         self.policy_freq = policy_freq
         self.tau = tau
+        self.create_optimizers()
+        self.state = AgentState.JACBOBIAN_TRANING
+
+    def create_optimizers(self):
+        self.actor_optimizer = optim.Adam(self.actor.parameters(), lr=self.lr_actor)
+        # self.actor_target_optimizer = optim.Adam(self.actor_target.parameters(), lr=self.lr_actor)
+        self.critic_optimizer = optim.Adam(self.critic.parameters(), lr=self.lr_critic)
+        # self.critic_target_optimizer = optim.Adam(self.critic_target.parameters(), lr=self.lr_critic)
 
     def save(self, training_state):
         training_state_dict = asdict(training_state)
@@ -116,10 +138,17 @@ class IKAgent:
     def choose_action(self, state, training_state):
         mu_v, var_v = None, None
         state = state.unsqueeze(0).to(self.jacobian_actor.device)
-        if training_state.agent_qlearning_training_enabled():
+        if self.state == AgentState.QLEARNING_TRANING:
             mu_v, var_v = self.actor(state)
         else:
-            mu_v, var_v = self.jacobian_actor(state)
+            # mu_v, var_v = self.jacobian_actor(state)
+            #TODO: make (1, 6) constant parametrizable
+            mu_v = torch.zeros(1, 6).to(self.jacobian_actor.device)
+            var_v = (
+                torch.normal(torch.zeros(1, 6), torch.ones(6) * 0.0001)
+                .to(self.jacobian_actor.device)
+                .abs()
+            )
         actions_v = self.sample(mu_v, var_v)
         log_prob = self.compute_log_prob(mu_v, var_v, actions_v)
         return actions_v, log_prob, mu_v, var_v
@@ -136,6 +165,14 @@ class IKAgent:
         return actions
 
     def train_buffer(self, training_state):
+        if (
+            training_state.agent_qlearning_training_enabled()
+            and self.state == AgentState.JACBOBIAN_TRANING
+        ):
+            # reset optimizers
+            self.create_optimizers()
+            self.state = AgentState.QLEARNING_TRANING
+
         self.total_it += 1
         state, action, reward, next_state, done = self.replay_buffer.sample(
             training_state.batch_size()
@@ -160,7 +197,7 @@ class IKAgent:
         with torch.no_grad():
             # Select action according to policy and add clipped noise
             next_mu, next_var = None, None
-            if training_state.agent_qlearning_training_enabled():
+            if self.state == AgentState.QLEARNING_TRANING:
                 next_mu, next_var = self.actor_target(next_state)
             else:
                 next_mu, next_var = self.jacobian_actor(next_state)
@@ -170,7 +207,7 @@ class IKAgent:
             target_Q = reward + (
                 (1.0 - done) * self.gamma * torch.min(target_Q1, target_Q2)
             )
-        self.critic.optimizer.zero_grad()
+        self.critic_optimizer.zero_grad()
         current_Q1, current_Q2 = self.critic(state, action)
         critic_loss = F.mse_loss(current_Q1, target_Q) + F.mse_loss(
             current_Q2, target_Q
@@ -183,13 +220,14 @@ class IKAgent:
 
         critic_loss.backward()
         # torch.nn.utils.clip_grad_norm_(self.critic.parameters(), 1.0)
-        self.critic.optimizer.step()
+        self.critic_optimizer.step()
+
         # Delayed policy updates
         if (
             self.total_it % self.policy_freq == 0
-            and training_state.agent_qlearning_training_enabled()
+            and self.state == AgentState.QLEARNING_TRANING
         ):
-            self.actor.optimizer.zero_grad()
+            self.actor_optimizer.zero_grad()
             mu, var = self.actor(state)
             # IMPORTANT NOTE: it is not possible to sample here as it needs to be
             # differentiable
@@ -202,13 +240,11 @@ class IKAgent:
             # TODO: entropy loss for the variance missing!!
             actor_loss.backward()
             # torch.nn.utils.clip_grad_norm_(self.actor.parameters(), 1.0)
-            self.actor.optimizer.step()
+            self.actor_optimizer.step()
 
-        if not training_state.agent_qlearning_training_enabled():
-            self.actor_target.optimizer.zero_grad()
-            self.actor.optimizer.zero_grad()
+        if self.state == AgentState.JACBOBIAN_TRANING:
+            self.actor_optimizer.zero_grad()
             # Compute actor losse
-            mu_target, var_target = self.actor_target(state)
             mu, var = self.actor(state)
             # TODO: sample using mu and var, and then pass it forward instead of directly mu
             """
@@ -221,25 +257,30 @@ class IKAgent:
             """
             det_mu, det_var = self.jacobian_actor(state)
             actor_loss = (mu - det_mu.data).abs().mean()
-            actor_target_loss = (mu_target - det_mu.data).abs().mean()
             self.summary.add_scalar(
                 "Actor Loss w.r.t. Pseudoinverse Jacobian",
                 actor_loss,
                 training_state.t,
             )
-            self.summary.add_scalar(
-                "Actor Target Loss w.r.t. Pseudoinverse Jacobian",
-                actor_target_loss,
-                training_state.t,
-            )
             actor_loss.backward()
-            actor_target_loss.backward()
-            self.actor_target.optimizer.step()
-            self.actor.optimizer.step()
+            self.actor_optimizer.step()
 
-        if (
+        if self.state == AgentState.JACBOBIAN_TRANING:
+            # Update the frozen target models
+            for param, target_param in zip(
+                self.critic.parameters(), self.critic_target.parameters()
+            ):
+                target_param.data.copy_(
+                    self.tau * param.data + (1 - self.tau) * target_param.data
+                )
+
+            for param, target_param in zip(
+                self.actor.parameters(), self.actor_target.parameters()
+            ):
+                target_param.data.copy_(param.data)
+        elif (
             self.total_it % self.policy_freq == 0
-            and training_state.agent_qlearning_training_enabled()
+            and self.state == AgentState.QLEARNING_TRANING
         ):
             # Update the frozen target models
             for param, target_param in zip(
