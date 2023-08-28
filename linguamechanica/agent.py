@@ -28,6 +28,7 @@ class IKAgent:
         policy_freq=8,
         tau=0.005,
         max_action=1.0,
+        max_noise_clip=0.0001,
         min_variance=0.0001,
         max_variance=0.00001,
         policy_noise=0.01,
@@ -36,6 +37,7 @@ class IKAgent:
         replay_buffer_max_size=10000,
     ):
         self.summary = summary
+        self.max_noise_clip = max_noise_clip
         self.gamma = gamma
         self.lr_actor = lr_actor
         self.lr_critic = lr_critic
@@ -90,7 +92,7 @@ class IKAgent:
         self.policy_freq = policy_freq
         self.tau = tau
         self.create_optimizers()
-        self.state = AgentState.JACBOBIAN_TRANING
+        self.state = AgentState.QLEARNING_TRANING
 
     def create_optimizers(self):
         self.actor_optimizer = optim.Adam(self.actor.parameters(), lr=self.lr_actor)
@@ -138,33 +140,38 @@ class IKAgent:
     def choose_action(self, state, training_state):
         mu_v, var_v = None, None
         state = state.unsqueeze(0).to(self.jacobian_actor.device)
-        if self.state == AgentState.QLEARNING_TRANING:
-            mu_v, var_v = self.actor(state)
-        else:
-            # mu_v, var_v = self.jacobian_actor(state)
-            #TODO: make (1, 6) constant parametrizable
-            mu_v = torch.zeros(1, 6).to(self.jacobian_actor.device)
-            var_v = (
-                torch.normal(torch.zeros(1, 6), torch.ones(6) * 0.0001)
-                .to(self.jacobian_actor.device)
-                .abs()
-            )
+        #if self.state == AgentState.QLEARNING_TRANING:
+        mu_v, var_v = self.actor(state)
+        #else:
+        #    mu_v, var_v = self.jacobian_actor(state)
+        #TODO: make (1, 6) constant parametrizable
+        '''
+        mu_v = torch.zeros(1, 6).to(self.jacobian_actor.device)
+        var_v = (
+            torch.normal(torch.zeros(1, 6), torch.ones(6) * 0.0001)
+            .to(self.jacobian_actor.device)
+            .abs()
+        )
+        '''
         actions_v = self.sample(mu_v, var_v)
         log_prob = self.compute_log_prob(mu_v, var_v, actions_v)
         return actions_v, log_prob, mu_v, var_v
 
     def sample(self, mu, var):
         std = torch.sqrt(var)
-        actions = torch.normal(mu, std)
+        noise = torch.randn_like(mu) * std
         """
             TODO: this might work for angular actuators, but not for
-            prismatic actuators. It is necessary a max_action
+            prismatic actuators. It is necessary a max_noise_clip
             that is congruent with the type of actuator.
         """
-        actions = torch.clip(actions, min=-self.max_action, max=self.max_action)
+        noise = torch.clip(noise, min=-self.max_noise_clip, max=self.max_noise_clip)
+        actions = mu + noise 
         return actions
 
     def train_buffer(self, training_state):
+        self.state = AgentState.QLEARNING_TRANING
+        '''
         if (
             training_state.agent_qlearning_training_enabled()
             and self.state == AgentState.JACBOBIAN_TRANING
@@ -172,6 +179,7 @@ class IKAgent:
             # reset optimizers
             self.create_optimizers()
             self.state = AgentState.QLEARNING_TRANING
+        '''
 
         self.total_it += 1
         state, action, reward, next_state, done = self.replay_buffer.sample(
@@ -230,7 +238,7 @@ class IKAgent:
             self.actor_optimizer.zero_grad()
             mu, var = self.actor(state)
             # IMPORTANT NOTE: it is not possible to sample here as it needs to be
-            # differentiable
+            # differentiable, thus the variance is ignored and not used
             actor_loss = -self.critic.Q1(state, mu).mean()
             self.summary.add_scalar(
                 "Actor Loss",

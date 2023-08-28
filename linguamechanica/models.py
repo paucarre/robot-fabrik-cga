@@ -81,12 +81,10 @@ class IKActor(nn.Module):
         # x = F.relu(self.fc4(x))
         # scale = F.relu(self.scale(x))
         # mu = F.tanh(self.mu(x)) * self.max_action
-        mu = F.tanh(self.mu_other(x)) * 0.01
+        mu = F.tanh(self.mu_other(x)) * self.max_action
         # mu = mu.view([mu.shape[0], 6, -1])3
         # TODO: remove the "0.0 * "
-        var = (
-            self.min_variance + ((F.tanh(self.var(x)) + 1.0) / 2.0) * self.max_variance
-        )
+        var = ((F.tanh(self.var(x)) + 1.0) / 2.0) * self.max_variance
         # mu = torch.bmm(mu, error_pose.unsqueeze(2))
         # mu = mu.squeeze(2) * scale
         return mu, var
@@ -124,21 +122,21 @@ class Critic(nn.Module):
         input_dim = 6 * 5
         # Q1
         self.q1_l1 = nn.Linear(input_dim, 1024)
-        self.q1_l2 = nn.Linear(1024, 256)
-        # self.q1_l3 = nn.Linear(512, 512)
-        # self.q1_l4 = nn.Linear(512, 256)
-        self.q1_l5 = nn.Linear(256, 1)
+        self.q1_l2 = nn.Linear(1024, 512)
+        self.q1_l3 = nn.Linear(512, 512)
+        self.q1_l4 = nn.Linear(512, 256)
+        self.q1_l5 = nn.Linear(256, 1, bias=False)
         nn.init.normal_(self.q1_l5.weight.data, mean=0.0, std=1e-5)
-        nn.init.normal_(self.q1_l5.bias.data, mean=0.0, std=1e-5)
+        #nn.init.normal_(self.q1_l5.bias.data, mean=0.0, std=1e-5)
 
         # Q2
         self.q2_l1 = nn.Linear(input_dim, 1024)
-        self.q2_l2 = nn.Linear(1024, 256)
-        # self.q2_l3 = nn.Linear(512, 512)
-        # self.q2_l4 = nn.Linear(512, 256)
-        self.q2_l5 = nn.Linear(256, 1)
+        self.q2_l2 = nn.Linear(1024, 512)
+        self.q2_l3 = nn.Linear(512, 512)
+        self.q2_l4 = nn.Linear(512, 256)
+        self.q2_l5 = nn.Linear(256, 1, bias=False)
         nn.init.normal_(self.q2_l5.weight.data, mean=0.0, std=1e-5)
-        nn.init.normal_(self.q2_l5.bias.data, mean=0.0, std=1e-5)
+        #nn.init.normal_(self.q2_l5.bias.data, mean=0.0, std=1e-5)
 
         self.open_chain = open_chain
 
@@ -149,14 +147,14 @@ class Critic(nn.Module):
 
         q1_x = F.relu(self.q1_l1(kinematic_action_embedding))
         q1_x = F.relu(self.q1_l2(q1_x))
-        # q1_x = F.relu(self.q1_l3(q1_x))
-        # q1_x = F.relu(self.q1_l4(q1_x))
+        q1_x = F.relu(self.q1_l3(q1_x))
+        q1_x = F.relu(self.q1_l4(q1_x))
         q1_x = -F.relu(self.q1_l5(q1_x))
 
         q2_x = F.relu(self.q2_l1(kinematic_action_embedding))
         q2_x = F.relu(self.q2_l2(q2_x))
-        # q2_x = F.relu(self.q2_l3(q2_x))
-        # q2_x = F.relu(self.q2_l4(q2_x))
+        q2_x = F.relu(self.q2_l3(q2_x))
+        q2_x = F.relu(self.q2_l4(q2_x))
         q2_x = -F.relu(self.q2_l5(q2_x))
 
         return q1_x, q2_x
@@ -168,7 +166,7 @@ class Critic(nn.Module):
 
         q1_x = F.relu(self.q1_l1(kinematic_action_embedding))
         q1_x = F.relu(self.q1_l2(q1_x))
-        # q1_x = F.relu(self.q1_l3(q1_x))
-        # q1_x = F.relu(self.q1_l4(q1_x))
+        q1_x = F.relu(self.q1_l3(q1_x))
+        q1_x = F.relu(self.q1_l4(q1_x))
         q1_x = -F.relu(self.q1_l5(q1_x))
         return q1_x

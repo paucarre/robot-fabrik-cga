@@ -11,9 +11,7 @@ from linguamechanica.training_context import EpisodeState, TrainingState
 def eval_policy(agent, training_state, eval_episodes=10):
     urdf_robot = UrdfRobotLibrary.dobot_cr5()
     open_chain = urdf_robot.extract_open_chains(0.3)[-1]
-    eval_env = Environment(
-        open_chain, training_state.weights, training_state.max_steps_done
-    )
+    eval_env = Environment( open_chain, training_state)
 
     avg_acc_reward = 0.0
     initial_rewards = torch.zeros(eval_episodes)
@@ -66,7 +64,7 @@ def train():
     # TODO: place all these constants as arguments
 
     training_state = TrainingState()
-    env = Environment(open_chain, training_state.weights, training_state.max_steps_done)
+    env = Environment(open_chain, training_state)
     agent = IKAgent(
         open_chain=open_chain,
         summary=summary,
@@ -80,9 +78,9 @@ def train():
         max_action=training_state.max_action,
         min_variance=training_state.min_variance,
         max_variance=training_state.max_variance,
-        replay_buffer_max_size=training_state.replay_buffer_max_size,
+        replay_buffer_max_size=training_state.replay_buffer_max_size(),
     )
-    episode = EpisodeState()
+    episode = EpisodeState(training_state.gamma)
     state, done = env.reset(), False
     initial_reward = None
     # agent.load(f"checkpoint_46999")
@@ -117,6 +115,7 @@ def train():
 
         # Perform action
         next_state, reward, done = env.step(action)
+        episode.step(reward)
         agent.store_transition(
             state=state.detach().cpu(),
             action=action[0, :].detach().cpu(),
@@ -124,9 +123,7 @@ def train():
             next_state=next_state.detach().cpu(),
             done=torch.Tensor([done]).detach().cpu(),
         )
-
         state = next_state
-        episode.reward += reward
         if initial_reward is None:
             initial_reward = reward
 

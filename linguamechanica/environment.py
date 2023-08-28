@@ -14,7 +14,7 @@ def force_parameters_within_bounds(params):
 
 
 class Environment:
-    def __init__(self, open_chain, weights, max_steps_done):
+    def __init__(self, open_chain, training_state):
         self.open_chain = open_chain
         """
         State dims should be for now:
@@ -29,15 +29,17 @@ class Environment:
         Action size should be:
             - Angle: sigmoid(x) - 0.5 or something similar
         """
-        self.weights = weights
+        self.weights = training_state.weights
         self.observation_space = np.zeros(6 + 6)
         self.action_dims = np.zeros(6).shape
         self.current_step = 0
-        self.max_steps_done = max_steps_done
+        self.max_steps_done = training_state.max_steps_done
         # TODO: make this nicer
         self.device = "cuda:0"
         self.open_chain = self.open_chain.to(self.device)
         self.weights = self.weights.to(self.device)
+        self.max_noise_clip = training_state.max_noise_clip
+        self.max_action = training_state.max_action
 
     def uniformly_sample_parameters_within_constraints(self):
         coordinates = []
@@ -51,59 +53,33 @@ class Environment:
             )
         return torch.Tensor(coordinates).unsqueeze(0).to(self.device)
 
-    def observation_to_tensor(self, observation):
-        observation_tensor = torch.zeros(self.observation_space.shape)
-        observation_tensor[:6] = observation["target_pose"].detach().cpu()
-        # TODO: test if this is key for backpropagation on manifold.
-        # It should be a pytorch tensor and undetached
-        # observation_tensor[6:12] = observation["current_pose"].detach().cpu()
-        observation_tensor[6:] = observation["current_parameters"].detach().cpu()
-        # index = torch.Tensor(6)
-        # index[observation["current_parameter_index"]] = 1.0
-        # observation_np[12:] = index[:]
-        return observation_tensor
-
     def sample_random_action(self):
         # TODO: this is a bit silly for now
         return self.uniformly_sample_parameters_within_constraints() / math.pi
 
     def generate_observation(self):
-        self.current_transformation = self.open_chain.forward_transformation(
-            self.current_parameters
-        )
-        self.current_pose = transforms.se3_log_map(
-            self.current_transformation.get_matrix()
-        )
-        self.current_parameter_index = 0
-        observation = {
-            "target_transformation": self.target_transformation,
-            "target_parameters": self.target_parameters,
-            "target_pose": self.target_pose,
-            "current_parameters": self.current_parameters,
-            "current_transformation": self.current_transformation,
-            "current_pose": self.current_pose,
-            "current_parameter_index": self.current_parameter_index,
-        }
-        observation = self.observation_to_tensor(observation)
-        return observation
+        state = torch.zeros(self.observation_space.shape)
+        state[:6] = self.target_pose.detach().cpu()
+        state[6:] = self.current_parameters.detach().cpu()
+        return state
 
     def reset(self):
         self.target_parameters = self.uniformly_sample_parameters_within_constraints()
         force_parameters_within_bounds(self.target_parameters)
-        self.target_transformation = self.open_chain.forward_transformation(
+        target_transformation = self.open_chain.forward_transformation(
             self.target_parameters
         )
         self.target_pose = transforms.se3_log_map(
-            self.target_transformation.get_matrix()
+            target_transformation.get_matrix()
         )
         # TODO:
         # - Add a level which modulates upwards the noise
         # - Constraint values to the actuator constraints
         # The higher the level is, the higher the noise
         # so that the network learns to solve harder problems
-        noise = torch.randn_like(self.target_parameters) * 0.001
-        noise = noise.clamp(-0.01, 0.01)
-        self.current_parameters = (self.target_parameters + (noise)).to(self.device)
+        noise = torch.randn_like(self.target_parameters) * self.max_action * self.max_steps_done
+        noise = noise.clamp(-self.max_noise_clip * self.max_steps_done, self.max_noise_clip * self.max_steps_done)
+        self.current_parameters = (self.target_parameters.detach().clone() + noise).to(self.device)
         force_parameters_within_bounds(self.current_parameters)
         # self.uniformly_sample_parameters_within_constraints()
         observation = self.generate_observation()
