@@ -86,7 +86,7 @@ class DifferentiableOpenChainMechanism:
         return twist
 
     def compute_error_pose(self, coords, target_pose):
-        print("compute_error_pose", coords.shape, target_pose.shape)
+        #print("compute_error_pose", coords.shape, target_pose.shape)
         current_transformation = self.forward_transformation(coords)
         target_transformation = transforms.se3_exp_map(target_pose)
         current_trans_to_target = current_transformation.compose(
@@ -187,7 +187,7 @@ class DifferentiableOpenChainMechanism:
 
     def forward_transformation(self, coordinates):
         self.screws = self.screws.to(coordinates.device)
-        print("forward_transformation", self.screws.shape, coordinates.unsqueeze(2).shape)
+        #print("forward_transformation", self.screws.shape, coordinates.unsqueeze(2).shape)
         twist = self.screws * coordinates.unsqueeze(2)
         original_shape = twist.shape
         twist = twist.view(-1, original_shape[2])
