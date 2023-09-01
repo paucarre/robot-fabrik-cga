@@ -1,0 +1,24 @@
+Traceback (most recent call last):
+  File "/usr/lib/python3.10/runpy.py", line 196, in _run_module_as_main
+    return _run_code(code, main_globals, None,
+  File "/usr/lib/python3.10/runpy.py", line 86, in _run_code
+    exec(code, run_globals)
+  File "/home/pau/robot-fabrik-cga/linguamechanica/train.py", line 162, in <module>
+    train()
+  File "/home/pau/robot-fabrik-cga/linguamechanica/train.py", line 134, in train
+    agent.train_buffer(training_state)
+  File "/home/pau/robot-fabrik-cga/linguamechanica/agent.py", line 207, in train_buffer
+    next_mu, next_var = self.actor_target(next_state)
+  File "/home/pau/.cache/pypoetry/virtualenvs/linguamechanica-XFzcHPK6-py3.10/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1501, in _call_impl
+    return forward_call(*args, **kwargs)
+  File "/home/pau/robot-fabrik-cga/linguamechanica/models.py", line 92, in forward
+    kinematic_embedding = add_kinematics_to_state_embedding(state, self.open_chain)
+  File "/home/pau/robot-fabrik-cga/linguamechanica/models.py", line 21, in add_kinematics_to_state_embedding
+    pose, pose_error = get_pose_and_pose_error(state, open_chain)
+  File "/home/pau/robot-fabrik-cga/linguamechanica/models.py", line 13, in get_pose_and_pose_error
+    error_pose = open_chain.compute_error_pose(current_coords, target_pose)
+  File "/home/pau/robot-fabrik-cga/linguamechanica/kinematics.py", line 90, in compute_error_pose
+    current_transformation = self.forward_transformation(coords)
+  File "/home/pau/robot-fabrik-cga/linguamechanica/kinematics.py", line 191, in forward_transformation
+    twist = self.screws * coordinates.unsqueeze(2)
+RuntimeError: The size of tensor a (6) must match the size of tensor b (12) at non-singleton dimension 3

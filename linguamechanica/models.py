@@ -9,6 +9,7 @@ def get_pose_and_pose_error(state, open_chain):
     current_coords = state[:, 6:]
     target_pose = state[:, :6]
     open_chain = open_chain.to(state.device)
+    print("get_pose_and_pose_error", state.shape, current_coords.shape, target_pose.shape)
     error_pose = open_chain.compute_error_pose(current_coords, target_pose)
     transformation = open_chain.forward_transformation(current_coords)
     pose = transforms.se3_log_map(transformation.get_matrix())
@@ -40,10 +41,9 @@ class IKActor(nn.Module):
         self,
         open_chain,
         max_action,
-        min_variance,
+        initial_action_variance,
         max_variance,
         lr,
-        state_dims,
         action_dims,
         fc1_dims=1024,
         fc2_dims=512,
@@ -56,37 +56,53 @@ class IKActor(nn.Module):
         input_dim = 6 * 3
         self.fc1 = nn.Linear(input_dim, fc1_dims)
         self.fc2 = nn.Linear(fc1_dims, fc2_dims)
-        # self.fc3 = nn.Linear(fc2_dims, fc3_dims)
-        # self.fc4 = nn.Linear(fc3_dims, fc4_dims)
-        self.mu = nn.Linear(fc2_dims, sum(action_dims) * 6)
-        self.mu_other = nn.Linear(fc2_dims, sum(action_dims), bias=False)
-        self.var = nn.Linear(fc2_dims, sum(action_dims))
-        self.scale = nn.Linear(fc2_dims, sum(action_dims))
+        self.fc3 = nn.Linear(fc2_dims, fc3_dims)
+        self.fc4 = nn.Linear(fc3_dims, fc4_dims)
+        #self.mu = nn.Linear(fc4_dims, sum(action_dims) * 6)
+        self.mu_other = nn.Linear(fc4_dims, sum(action_dims), bias=False)
+        self.var = nn.Linear(fc4_dims, sum(action_dims))
+        #self.scale = nn.Linear(fc2_dims, sum(action_dims))
         self.max_action = max_action
-        self.min_variance = min_variance
+        self.initial_action_variance = initial_action_variance
         self.max_variance = max_variance
-        nn.init.normal_(self.mu.weight.data, mean=0.0, std=1e-5)
-        nn.init.normal_(self.mu.bias.data, mean=0.0, std=1e-5)
-        nn.init.normal_(self.scale.weight.data, mean=0.0, std=1e-5)
-        nn.init.normal_(self.scale.bias.data, mean=0.0, std=1e-5)
+        #nn.init.normal_(self.fc1.weight.data, mean=0.0, std=1e-3)
+        #nn.init.normal_(self.fc1.bias.data, mean=0.0, std=1e-5)
+        #nn.init.normal_(self.fc2.weight.data, mean=0.0, std=1e-3)
+        #nn.init.normal_(self.fc2.bias.data, mean=0.0, std=1e-5)
+        #nn.init.normal_(self.fc3.weight.data, mean=0.0, std=1e-3)
+        #nn.init.normal_(self.fc3.bias.data, mean=0.0, std=1e-5)
+        #nn.init.normal_(self.fc4.weight.data, mean=0.0, std=1e-3)
+        #nn.init.normal_(self.fc4.bias.data, mean=0.0, std=1e-5)
+        nn.init.normal_(self.mu_other.weight.data, mean=0.0, std=1e-1)
+        nn.init.normal_(self.var.weight.data, mean=0.0, std=1e-10)
+        self.initial_action_variance  = torch.Tensor([self.initial_action_variance])
+        initial_variance_bias = torch.atanh((self.initial_action_variance *  2.0) - 1.0).item()
+        nn.init.normal_(self.var.bias.data, mean=initial_variance_bias, std=1e-3)
+        #self.var.bias.data = 0.00001
+        #nn.init.normal_(self.mu.weight.data, mean=0.0, std=1e-3)
+        #nn.init.normal_(self.mu.bias.data, mean=0.0, std=1e-5)
+        #nn.init.normal_(self.scale.weight.data, mean=0.0, std=1e-5)
+        #nn.init.normal_(self.scale.bias.data, mean=0.0, std=1e-5)
         # TODO: this should be more elegant
         self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
         self.to(self.device)
 
     def forward(self, state):
+        #print("state", state.shape)
         kinematic_embedding = add_kinematics_to_state_embedding(state, self.open_chain)
         x = F.relu(self.fc1(kinematic_embedding))
         x = F.relu(self.fc2(x))
-        # x = F.relu(self.fc3(x))
-        # x = F.relu(self.fc4(x))
+        x = F.relu(self.fc3(x))
+        x = F.relu(self.fc4(x))
         # scale = F.relu(self.scale(x))
-        # mu = F.tanh(self.mu(x)) * self.max_action
         mu = F.tanh(self.mu_other(x)) * self.max_action
-        # mu = mu.view([mu.shape[0], 6, -1])3
+        #mu = self.mu(x)
+        #mu = mu.view([mu.shape[0], 6, -1])
         # TODO: remove the "0.0 * "
         var = ((F.tanh(self.var(x)) + 1.0) / 2.0) * self.max_variance
-        # mu = torch.bmm(mu, error_pose.unsqueeze(2))
-        # mu = mu.squeeze(2) * scale
+        #_, error_pose = get_pose_and_pose_error(state, self.open_chain)
+        #mu = torch.bmm(mu, error_pose.unsqueeze(2))
+        #mu = mu.squeeze(2)# * scale
         return mu, var
 
 
@@ -117,7 +133,7 @@ class PseudoinvJacobianIKActor(nn.Module):
 
 
 class Critic(nn.Module):
-    def __init__(self, lr, state_dims, action_dims, open_chain):
+    def __init__(self, lr, action_dims, open_chain):
         super(Critic, self).__init__()
         input_dim = 6 * 5
         # Q1
@@ -126,7 +142,15 @@ class Critic(nn.Module):
         self.q1_l3 = nn.Linear(512, 512)
         self.q1_l4 = nn.Linear(512, 256)
         self.q1_l5 = nn.Linear(256, 1, bias=False)
-        nn.init.normal_(self.q1_l5.weight.data, mean=0.0, std=1e-5)
+        nn.init.normal_(self.q1_l5.weight.data, mean=0.0, std=1e-3)
+        #nn.init.normal_(self.q1_l4.bias.data, mean=0.0, std=1e-5)
+        #nn.init.normal_(self.q1_l4.weight.data, mean=0.0, std=1e-3)
+        #nn.init.normal_(self.q1_l3.bias.data, mean=0.0, std=1e-5)
+        #nn.init.normal_(self.q1_l3.weight.data, mean=0.0, std=1e-3)
+        #nn.init.normal_(self.q1_l2.bias.data, mean=0.0, std=1e-5)
+        #nn.init.normal_(self.q1_l2.weight.data, mean=0.0, std=1e-3)
+        #nn.init.normal_(self.q1_l1.bias.data, mean=0.0, std=1e-5)
+        #nn.init.normal_(self.q1_l1.weight.data, mean=0.0, std=1e-3)
         #nn.init.normal_(self.q1_l5.bias.data, mean=0.0, std=1e-5)
 
         # Q2
@@ -135,8 +159,16 @@ class Critic(nn.Module):
         self.q2_l3 = nn.Linear(512, 512)
         self.q2_l4 = nn.Linear(512, 256)
         self.q2_l5 = nn.Linear(256, 1, bias=False)
-        nn.init.normal_(self.q2_l5.weight.data, mean=0.0, std=1e-5)
+        nn.init.normal_(self.q2_l5.weight.data, mean=0.0, std=1e-3)
         #nn.init.normal_(self.q2_l5.bias.data, mean=0.0, std=1e-5)
+        #nn.init.normal_(self.q2_l4.bias.data, mean=0.0, std=1e-5)
+        #nn.init.normal_(self.q2_l4.weight.data, mean=0.0, std=1e-3)
+        #nn.init.normal_(self.q2_l3.bias.data, mean=0.0, std=1e-5)
+        #nn.init.normal_(self.q2_l3.weight.data, mean=0.0, std=1e-3)
+        #nn.init.normal_(self.q2_l2.bias.data, mean=0.0, std=1e-5)
+        #nn.init.normal_(self.q2_l2.weight.data, mean=0.0, std=1e-3)
+        #nn.init.normal_(self.q2_l1.bias.data, mean=0.0, std=1e-5)
+        #nn.init.normal_(self.q2_l1.weight.data, mean=0.0, std=1e-3)
 
         self.open_chain = open_chain
 
