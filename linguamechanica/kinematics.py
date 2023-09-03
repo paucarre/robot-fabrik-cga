@@ -85,14 +85,14 @@ class DifferentiableOpenChainMechanism:
         twist = transforms.se3_log_map(transformation.get_matrix())
         return twist
 
-    def compute_error_pose(self, coords, target_pose):
-        #print("compute_error_pose", coords.shape, target_pose.shape)
-        current_transformation = self.forward_transformation(coords)
+    def compute_error_pose(self, thetas, target_pose):
+        #print("compute_error_pose", thetas.shape, target_pose.shape)
+        current_transformation = self.forward_transformation(thetas)
         target_transformation = transforms.se3_exp_map(target_pose)
         current_trans_to_target = current_transformation.compose(
             transforms.Transform3d(matrix=target_transformation).inverse()
         )
-        current_trans_to_target = current_trans_to_target.to(coords.device).get_matrix()
+        current_trans_to_target = current_trans_to_target.to(thetas.device).get_matrix()
         error_pose = transforms.se3_log_map(current_trans_to_target)
         return error_pose
 
