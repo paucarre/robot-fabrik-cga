@@ -2,108 +2,67 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from pytorch3d import transforms
-from linguamechanica.environment import force_parameters_within_bounds
 
-
-def get_pose_and_pose_error(state, open_chain):
-    current_coords = state[:, 6:]
-    target_pose = state[:, :6]
-    open_chain = open_chain.to(state.device)
-    #print("get_pose_and_pose_error", state.shape, current_coords.shape, target_pose.shape)
-    error_pose = open_chain.compute_error_pose(current_coords, target_pose)
-    transformation = open_chain.forward_transformation(current_coords)
-    pose = transforms.se3_log_map(transformation.get_matrix())
-    return pose, error_pose
-
-
-def add_kinematics_to_state_embedding(state, open_chain):
-    target_pose = state[:, :6]
-    pose, pose_error = get_pose_and_pose_error(state, open_chain)
-    return torch.cat([target_pose, pose, pose_error], 1)
-
-
-def add_kinematics_to_state_action_embedding(state, action, open_chain):
-    target_pose = state[:, :6]
-    pose, pose_error = get_pose_and_pose_error(state, open_chain)
-    new_state = state.detach().clone()
-    new_state[:, 6:] += action
-    force_parameters_within_bounds(new_state)
-    pose_with_action, pose_error_with_action = get_pose_and_pose_error(
-        new_state, open_chain
-    )
-    return torch.cat(
-        [target_pose, pose, pose_error, pose_with_action, pose_error_with_action], 1
-    )
-
-
-class IKActor(nn.Module):
+def compute_manifold_error(open_chain, thetas, target_pose):
+    pose, error_pose = open_chain.compute_pose_and_error_pose(thetas, target_pose)
+    # pose decomposition
+    pose_linear =  pose[:, :3]
+    pose_angular_cos =  pose[:, 3:].cos()
+    pose_angular_sin =  pose[:, 3:].sin()
+    # error pose decomposition 
+    error_pose_linear =  error_pose[:, :3]
+    error_pose_angular_cos =  error_pose[:, 3:].cos()
+    error_pose_angular_sin =  error_pose[:, 3:].sin()
+    # manifold error with all information
+    manifold_error = torch.cat([pose_linear, pose_angular_cos , pose_angular_sin, error_pose_linear, error_pose_angular_cos, error_pose_angular_sin, thetas.cos(), thetas.sin()], 1)      
+    return manifold_error
+    
+class InverseKinematicsActor(nn.Module):
     def __init__(
-        self,
+        self, 
         open_chain,
         max_action,
-        initial_action_variance,
-        max_variance,
-        lr,
-        action_dims,
-        fc1_dims=1024,
-        fc2_dims=512,
-        fc3_dims=256,
-        fc4_dims=256,
+        max_variance
     ):
-        super(IKActor, self).__init__()
-        self.open_chain = open_chain
-        # Adding 6 for pose and 6 for error pose wrt target
-        input_dim = 6 * 3
-        self.fc1 = nn.Linear(input_dim, fc1_dims)
-        self.fc2 = nn.Linear(fc1_dims, fc2_dims)
-        self.fc3 = nn.Linear(fc2_dims, fc3_dims)
-        self.fc4 = nn.Linear(fc3_dims, fc4_dims)
-        #self.mu = nn.Linear(fc4_dims, sum(action_dims) * 6)
-        self.mu_other = nn.Linear(fc4_dims, sum(action_dims), bias=False)
-        self.var = nn.Linear(fc4_dims, sum(action_dims))
-        #self.scale = nn.Linear(fc2_dims, sum(action_dims))
+        super(InverseKinematicsActor, self).__init__()        
+        weights = 128
         self.max_action = max_action
-        self.initial_action_variance = initial_action_variance
-        self.max_variance = max_variance
-        #nn.init.normal_(self.fc1.weight.data, mean=0.0, std=1e-3)
-        #nn.init.normal_(self.fc1.bias.data, mean=0.0, std=1e-5)
-        #nn.init.normal_(self.fc2.weight.data, mean=0.0, std=1e-3)
-        #nn.init.normal_(self.fc2.bias.data, mean=0.0, std=1e-5)
-        #nn.init.normal_(self.fc3.weight.data, mean=0.0, std=1e-3)
-        #nn.init.normal_(self.fc3.bias.data, mean=0.0, std=1e-5)
-        #nn.init.normal_(self.fc4.weight.data, mean=0.0, std=1e-3)
-        #nn.init.normal_(self.fc4.bias.data, mean=0.0, std=1e-5)
-        nn.init.normal_(self.mu_other.weight.data, mean=0.0, std=1e-1)
-        nn.init.normal_(self.var.weight.data, mean=0.0, std=1e-10)
-        self.initial_action_variance  = torch.Tensor([self.initial_action_variance])
-        initial_variance_bias = torch.atanh((self.initial_action_variance *  2.0) - 1.0).item()
-        nn.init.normal_(self.var.bias.data, mean=initial_variance_bias, std=1e-3)
-        #self.var.bias.data = 0.00001
-        #nn.init.normal_(self.mu.weight.data, mean=0.0, std=1e-3)
-        #nn.init.normal_(self.mu.bias.data, mean=0.0, std=1e-5)
-        #nn.init.normal_(self.scale.weight.data, mean=0.0, std=1e-5)
-        #nn.init.normal_(self.scale.bias.data, mean=0.0, std=1e-5)
-        # TODO: this should be more elegant
-        self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-        self.to(self.device)
+        self.max_variance = max_variance        
+        self.open_chain = open_chain
+        #self.max_action = max_action
+        #self.max_variance = max_variance
+        on_manifold_count = 9 + 9 + 6 + 6
+        thetas_count = self.open_chain.screws.shape[0]
+        self.fc1 = nn.Linear(in_features=on_manifold_count, out_features=weights, bias=True)
+        self.fc2 = nn.Linear(in_features=weights+on_manifold_count, out_features=weights, bias=True)
+        self.fc3 = nn.Linear(in_features=weights+on_manifold_count, out_features=weights, bias=True)
+        self.fc4 = nn.Linear(in_features=weights+on_manifold_count, out_features=weights, bias=True)
+        self.fc5 = nn.Linear(in_features=weights+on_manifold_count, out_features=weights, bias=True)
+        self.fc6 = nn.Linear(in_features=weights+on_manifold_count, out_features=weights, bias=True)
+        self.fc_cos = nn.Linear(in_features=weights+on_manifold_count, out_features=thetas_count, bias=True)
+        self.fc_sin = nn.Linear(in_features=weights+on_manifold_count, out_features=thetas_count, bias=True)
+        self.fc_cos_var = nn.Linear(in_features=weights+on_manifold_count, out_features=thetas_count, bias=True)
+        self.fc_sin_var = nn.Linear(in_features=weights+on_manifold_count, out_features=thetas_count, bias=True)
+    
+    def device(self):
+        return self.fc1.weight.device
 
-    def forward(self, state):
-        #print("state", state.shape)
-        kinematic_embedding = add_kinematics_to_state_embedding(state, self.open_chain)
-        x = F.relu(self.fc1(kinematic_embedding))
-        x = F.relu(self.fc2(x))
-        x = F.relu(self.fc3(x))
-        x = F.relu(self.fc4(x))
-        # scale = F.relu(self.scale(x))
-        mu = F.tanh(self.mu_other(x)) * self.max_action
-        #mu = self.mu(x)
-        #mu = mu.view([mu.shape[0], 6, -1])
-        # TODO: remove the "0.0 * "
-        var = ((F.tanh(self.var(x)) + 1.0) / 2.0) * self.max_variance
-        #_, error_pose = get_pose_and_pose_error(state, self.open_chain)
-        #mu = torch.bmm(mu, error_pose.unsqueeze(2))
-        #mu = mu.squeeze(2)# * scale
-        return mu, var
+    def forward(self, thetas, target_pose):        
+        manifold_error = compute_manifold_error(self.open_chain, thetas, target_pose)
+        x = torch.cat([F.tanh(self.fc1(manifold_error)), manifold_error],1)
+        x = torch.cat([F.tanh(self.fc2(x)), manifold_error],1)
+        x = torch.cat([F.tanh(self.fc3(x)), manifold_error],1)
+        x = torch.cat([F.tanh(self.fc4(x)), manifold_error],1)
+        x = torch.cat([F.tanh(self.fc5(x)), manifold_error],1)
+        x = torch.cat([F.tanh(self.fc6(x)), manifold_error],1)
+        # cos, sin output
+        cos = self.fc_cos(x).cos()
+        sin = self.fc_sin(x).sin()
+        # cos var, sin var output
+        cos_var = ((F.tanh(self.fc_cos_var(x)) + 1.0) / 2.0) * self.max_variance
+        sin_var = ((F.tanh(self.fc_sin_var(x)) + 1.0) / 2.0) * self.max_variance
+        return torch.cat([sin.unsqueeze(2), cos.unsqueeze(2)], 2), torch.cat([sin_var.unsqueeze(2), cos_var.unsqueeze(2)], 2)
+
 
 
 class PseudoinvJacobianIKActor(nn.Module):
@@ -122,83 +81,43 @@ class PseudoinvJacobianIKActor(nn.Module):
         We ignore the current pose from the
         state as we only care about the current parameters
         """
-        current_coords = state[:, 6:]
+        current_thetas = state[:, 6:]
         target_pose = state[:, :6]
         self.open_chain = self.open_chain.to(state.device)
-        error_pose = self.open_chain.compute_error_pose(current_coords, target_pose)
+        error_pose = self.open_chain.compute_error_pose(current_thetas, target_pose)
         # TODO: the constant factor should be something else
-        mu = -0.01 * self.open_chain.inverse_kinematics_step(current_coords, error_pose)
+        mu = -0.01 * self.open_chain.inverse_kinematics_step(current_thetas, error_pose)
         var = torch.zeros(mu.shape).to(mu.device)
         return mu, var
 
 
-class Critic(nn.Module):
-    def __init__(self, lr, action_dims, open_chain):
-        super(Critic, self).__init__()
-        input_dim = 6 * 5
-        # Q1
-        self.q1_l1 = nn.Linear(input_dim, 1024)
-        self.q1_l2 = nn.Linear(1024, 512)
-        self.q1_l3 = nn.Linear(512, 512)
-        self.q1_l4 = nn.Linear(512, 256)
-        self.q1_l5 = nn.Linear(256, 1, bias=False)
-        nn.init.normal_(self.q1_l5.weight.data, mean=0.0, std=1e-3)
-        #nn.init.normal_(self.q1_l4.bias.data, mean=0.0, std=1e-5)
-        #nn.init.normal_(self.q1_l4.weight.data, mean=0.0, std=1e-3)
-        #nn.init.normal_(self.q1_l3.bias.data, mean=0.0, std=1e-5)
-        #nn.init.normal_(self.q1_l3.weight.data, mean=0.0, std=1e-3)
-        #nn.init.normal_(self.q1_l2.bias.data, mean=0.0, std=1e-5)
-        #nn.init.normal_(self.q1_l2.weight.data, mean=0.0, std=1e-3)
-        #nn.init.normal_(self.q1_l1.bias.data, mean=0.0, std=1e-5)
-        #nn.init.normal_(self.q1_l1.weight.data, mean=0.0, std=1e-3)
-        #nn.init.normal_(self.q1_l5.bias.data, mean=0.0, std=1e-5)
-
-        # Q2
-        self.q2_l1 = nn.Linear(input_dim, 1024)
-        self.q2_l2 = nn.Linear(1024, 512)
-        self.q2_l3 = nn.Linear(512, 512)
-        self.q2_l4 = nn.Linear(512, 256)
-        self.q2_l5 = nn.Linear(256, 1, bias=False)
-        nn.init.normal_(self.q2_l5.weight.data, mean=0.0, std=1e-3)
-        #nn.init.normal_(self.q2_l5.bias.data, mean=0.0, std=1e-5)
-        #nn.init.normal_(self.q2_l4.bias.data, mean=0.0, std=1e-5)
-        #nn.init.normal_(self.q2_l4.weight.data, mean=0.0, std=1e-3)
-        #nn.init.normal_(self.q2_l3.bias.data, mean=0.0, std=1e-5)
-        #nn.init.normal_(self.q2_l3.weight.data, mean=0.0, std=1e-3)
-        #nn.init.normal_(self.q2_l2.bias.data, mean=0.0, std=1e-5)
-        #nn.init.normal_(self.q2_l2.weight.data, mean=0.0, std=1e-3)
-        #nn.init.normal_(self.q2_l1.bias.data, mean=0.0, std=1e-5)
-        #nn.init.normal_(self.q2_l1.weight.data, mean=0.0, std=1e-3)
-
+class InverseKinematicsCritic(nn.Module):
+    def __init__(
+        self, 
+        open_chain,
+    ):
+        super(InverseKinematicsCritic, self).__init__()        
+        weights = 128
         self.open_chain = open_chain
+        on_manifold_count = 9 + 9 + 6 + 6        
+        self.fc1 = nn.Linear(in_features=on_manifold_count, out_features=weights, bias=True)
+        self.fc2 = nn.Linear(in_features=weights+on_manifold_count, out_features=weights, bias=True)
+        self.fc3 = nn.Linear(in_features=weights+on_manifold_count, out_features=weights, bias=True)
+        self.fc4 = nn.Linear(in_features=weights+on_manifold_count, out_features=weights, bias=True)
+        self.fc5 = nn.Linear(in_features=weights+on_manifold_count, out_features=weights, bias=True)
+        self.fc6 = nn.Linear(in_features=weights+on_manifold_count, out_features=weights, bias=True)
+        self.fc_critic = nn.Linear(in_features=weights+on_manifold_count, out_features=1, bias=True)
+    
+    def device(self):
+        return self.fc1.weight.device
 
-    def forward(self, state, action):
-        kinematic_action_embedding = add_kinematics_to_state_action_embedding(
-            state, action, self.open_chain
-        )
-
-        q1_x = F.relu(self.q1_l1(kinematic_action_embedding))
-        q1_x = F.relu(self.q1_l2(q1_x))
-        q1_x = F.relu(self.q1_l3(q1_x))
-        q1_x = F.relu(self.q1_l4(q1_x))
-        q1_x = -F.relu(self.q1_l5(q1_x))
-
-        q2_x = F.relu(self.q2_l1(kinematic_action_embedding))
-        q2_x = F.relu(self.q2_l2(q2_x))
-        q2_x = F.relu(self.q2_l3(q2_x))
-        q2_x = F.relu(self.q2_l4(q2_x))
-        q2_x = -F.relu(self.q2_l5(q2_x))
-
-        return q1_x, q2_x
-
-    def Q1(self, state, action):
-        kinematic_action_embedding = add_kinematics_to_state_action_embedding(
-            state, action, self.open_chain
-        )
-
-        q1_x = F.relu(self.q1_l1(kinematic_action_embedding))
-        q1_x = F.relu(self.q1_l2(q1_x))
-        q1_x = F.relu(self.q1_l3(q1_x))
-        q1_x = F.relu(self.q1_l4(q1_x))
-        q1_x = -F.relu(self.q1_l5(q1_x))
-        return q1_x
+    def forward(self, thetas, target_pose):
+        manifold_error = compute_manifold_error(self.open_chain, thetas, target_pose)
+        x = torch.cat([F.tanh(self.fc1(manifold_error)), manifold_error],1)
+        x = torch.cat([F.tanh(self.fc2(x)), manifold_error],1)
+        x = torch.cat([F.tanh(self.fc3(x)), manifold_error],1)
+        x = torch.cat([F.tanh(self.fc4(x)), manifold_error],1)
+        x = torch.cat([F.tanh(self.fc5(x)), manifold_error],1)
+        x = torch.cat([F.tanh(self.fc6(x)), manifold_error],1)
+        quality = -F.relu(self.fc_critic(x))
+        return quality

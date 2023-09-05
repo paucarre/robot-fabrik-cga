@@ -6,12 +6,12 @@ from linguamechanica.environment import force_parameters_within_bounds
 
 
 def get_pose_and_pose_error(state, open_chain):
-    current_coords = state[:, 6:]
+    current_thetas = state[:, 6:]
     target_pose = state[:, :6]
     open_chain = open_chain.to(state.device)
-    #print("get_pose_and_pose_error", state.shape, current_coords.shape, target_pose.shape)
-    error_pose = open_chain.compute_error_pose(current_coords, target_pose)
-    transformation = open_chain.forward_transformation(current_coords)
+    #print("get_pose_and_pose_error", state.shape, current_thetas.shape, target_pose.shape)
+    error_pose = open_chain.compute_error_pose(current_thetas, target_pose)
+    transformation = open_chain.forward_transformation(current_thetas)
     pose = transforms.se3_log_map(transformation.get_matrix())
     return pose, error_pose
 
@@ -122,12 +122,12 @@ class PseudoinvJacobianIKActor(nn.Module):
         We ignore the current pose from the
         state as we only care about the current parameters
         """
-        current_coords = state[:, 6:]
+        current_thetas = state[:, 6:]
         target_pose = state[:, :6]
         self.open_chain = self.open_chain.to(state.device)
-        error_pose = self.open_chain.compute_error_pose(current_coords, target_pose)
+        error_pose = self.open_chain.compute_error_pose(current_thetas, target_pose)
         # TODO: the constant factor should be something else
-        mu = -0.01 * self.open_chain.inverse_kinematics_step(current_coords, error_pose)
+        mu = -0.01 * self.open_chain.inverse_kinematics_step(current_thetas, error_pose)
         var = torch.zeros(mu.shape).to(mu.device)
         return mu, var
 

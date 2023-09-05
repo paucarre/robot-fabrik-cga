@@ -47,7 +47,7 @@ class TrainingState:
     def can_train_buffer(self):
         return self.t >= self.data_generation_without_actor_iterations
 
-    def agent_qlearning_training_enabled(self):
+    def can_train_buffer(self):
         return (
             self.t
             >= self.data_generation_without_actor_iterations
@@ -60,15 +60,15 @@ class TrainingState:
     def can_save(self):
         return (
             self.t + 1
-        ) % self.save_freq == 0 and self.agent_qlearning_training_enabled()
+        ) % self.save_freq == 0 and self.can_train_buffer()
 
     def can_eval_policy(self):
         return (
             self.t + 1
-        ) % self.eval_freq == 0 and self.agent_qlearning_training_enabled()
+        ) % self.eval_freq == 0 and self.can_train_buffer()
 
     def batch_size(self):
-        if self.agent_qlearning_training_enabled():
+        if self.can_train_buffer():
             return self.qlearning_batch_size
         else:
             return self.jacobian_batch_size

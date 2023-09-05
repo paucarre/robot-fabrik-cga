@@ -55,19 +55,19 @@ class TestDifferentiableOpenChainMechanism(unittest.TestCase):
         open_chain = DifferentiableOpenChainMechanism(
             screws, initial, [(0, 100.0), (0, math.pi * 2)]
         )
-        coords = torch.Tensor([[10.0, np.pi / 4]])
-        matrix = open_chain.forward_transformation(coords)
+        thetas = torch.Tensor([[10.0, np.pi / 4]])
+        matrix = open_chain.forward_transformation(thetas)
         pose = transforms.se3_log_map(matrix.get_matrix())
         target_pose = pose
-        found_coords = open_chain.inverse_kinematics_backprop(
-            initial_coords=torch.Tensor([[0.0, 0.0]]),
+        found_thetas = open_chain.inverse_kinematics_backprop(
+            initial_thetas=torch.Tensor([[0.0, 0.0]]),
             target_pose=target_pose,
             min_error=1e-2,
             error_weights=torch.Tensor([1.0, 1.0, 1.0, 1.0, 1.0, 1.0]),
             lr=0.01,
             max_steps=40000,
         )
-        assert (found_coords - coords).abs().sum() <= 1e-2
+        assert (found_thetas - thetas).abs().sum() <= 1e-2
 
     def test_inverse_kinematics_cr5(self):
         urdf_robot = UrdfRobotLibrary.dobot_cr5()
@@ -85,11 +85,11 @@ class TestDifferentiableOpenChainMechanism(unittest.TestCase):
             transformation = open_chain.forward_transformation(coordinates)
             pose = transforms.se3_log_map(transformation.get_matrix())
             target_pose = pose + (torch.rand(6) * 0.001)
-            initial_coords = coordinates
+            initial_thetas = coordinates
             parameter_update_rate = 0.001 * torch.Tensor([1.0, 1.0, 1.0, 1.0, 1.0, 1.0])
             error_weights = torch.Tensor([1.0, 1.0, 1.0, 1.0, 1.0, 1.0])
-            found_coords = open_chain.inverse_kinematics(
-                initial_coords=initial_coords,
+            found_thetas = open_chain.inverse_kinematics(
+                initial_thetas=initial_thetas,
                 target_pose=target_pose,
                 min_error=1e-3,
                 error_weights=error_weights,
@@ -97,14 +97,14 @@ class TestDifferentiableOpenChainMechanism(unittest.TestCase):
                 max_steps=1000,
             )
             initial_error_pose = open_chain.compute_error_pose(
-                initial_coords, target_pose
+                initial_thetas, target_pose
             )
             initial_error_pose = (
                 DifferentiableOpenChainMechanism.compute_weighted_error(
                     initial_error_pose, error_weights
                 )
             )
-            found_error_pose = open_chain.compute_error_pose(found_coords, target_pose)
+            found_error_pose = open_chain.compute_error_pose(found_thetas, target_pose)
             found_error_pose = DifferentiableOpenChainMechanism.compute_weighted_error(
                 found_error_pose, error_weights
             )
@@ -128,20 +128,20 @@ class TestDifferentiableOpenChainMechanism(unittest.TestCase):
         open_chain = DifferentiableOpenChainMechanism(
             screws, initial, [(0, 100.0), (0, math.pi * 2)]
         )
-        coords = torch.Tensor([[10.0, np.pi / 4]])
-        matrix = open_chain.forward_transformation(coords)
+        thetas = torch.Tensor([[10.0, np.pi / 4]])
+        matrix = open_chain.forward_transformation(thetas)
         pose = transforms.se3_log_map(matrix.get_matrix())
 
         target_pose = pose
-        found_coords = open_chain.inverse_kinematics(
-            initial_coords=torch.Tensor([[0.0, 0.0]]),
+        found_thetas = open_chain.inverse_kinematics(
+            initial_thetas=torch.Tensor([[0.0, 0.0]]),
             target_pose=target_pose,
             min_error=1e-2,
             error_weights=torch.Tensor([1.0, 1.0, 1.0, 1.0, 1.0, 1.0]),
             parameter_update_rate=torch.Tensor([0.5, 0.5]),
             max_steps=10000,
         )
-        assert (found_coords - coords).abs().sum() <= 1e-2
+        assert (found_thetas - thetas).abs().sum() <= 1e-2
 
     def test_compute_weighted_error(self):
         error_twist = torch.Tensor(
@@ -168,19 +168,19 @@ class TestDifferentiableOpenChainMechanism(unittest.TestCase):
             screws, initial, [(0, 100.0), (0, math.pi * 2)]
         )
         target_pose = torch.Tensor([[0, 0, 0, 0, 0, 0]])
-        # test zero pose and zero coords
-        coords = torch.Tensor([[0.0, 0.0]])
-        error_twist = open_chain.compute_error_pose(coords, target_pose)
+        # test zero pose and zero thetas
+        thetas = torch.Tensor([[0.0, 0.0]])
+        error_twist = open_chain.compute_error_pose(thetas, target_pose)
         assert error_twist.abs().sum() < 1e-10
         # test movement of 10 from identity target
-        coords = torch.Tensor([[10.0, 0.0]])
-        error_twist = open_chain.compute_error_pose(coords, target_pose)
+        thetas = torch.Tensor([[10.0, 0.0]])
+        error_twist = open_chain.compute_error_pose(thetas, target_pose)
         assert (
             error_twist - torch.Tensor([[0.0, 0.0, 10.0, 0.0, 0.0, 0.0]])
         ).abs().sum() < 1e-7
         # test rotation of 45 deg. from identity
-        coords = torch.Tensor([[0.0, np.pi / 4]])
-        error_twist = open_chain.compute_error_pose(coords, target_pose)
+        thetas = torch.Tensor([[0.0, np.pi / 4]])
+        error_twist = open_chain.compute_error_pose(thetas, target_pose)
         assert (
             error_twist - torch.Tensor([[0.0, 0.0, 0.0, np.pi / 4, 0.0, 0.0]])
         ).abs().sum() < 1e-7
@@ -201,7 +201,7 @@ class TestDifferentiableOpenChainMechanism(unittest.TestCase):
                 [[0.0, 0.0, 1.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 1.0, 0.0, 0.0]],
             ]
         )
-        coords = torch.Tensor([[10.0, np.pi], [math.pi / 2.0, 10.0], [10.0, np.pi]])
+        thetas = torch.Tensor([[10.0, np.pi], [math.pi / 2.0, 10.0], [10.0, np.pi]])
         initial = torch.Tensor(
             [
                 [1, 0, 0, 0],
@@ -213,7 +213,7 @@ class TestDifferentiableOpenChainMechanism(unittest.TestCase):
         open_chain = DifferentiableOpenChainMechanism(
             screws, initial, [(0, 100.0), (0, math.pi * 2)]
         )
-        jacobian = open_chain.jacobian(coords)
+        jacobian = open_chain.jacobian(thetas)
         """
         Verify size is [ Batch, Twist, Coordinate]
         """
@@ -223,21 +223,21 @@ class TestDifferentiableOpenChainMechanism(unittest.TestCase):
         """
         rotation_idx = [3, 4, 5]
         translation_idx = [0, 1, 2]
-        translation_coords = (
+        translation_thetas = (
             torch.Tensor([[1, 0], [0, 1], [1, 0]]).unsqueeze(1).expand(jacobian.shape)
         )
-        rotation_jacobian_by_translation_coords = jacobian[:, rotation_idx, :][
-            translation_coords[:, rotation_idx, :] == 1
+        rotation_jacobian_by_translation_thetas = jacobian[:, rotation_idx, :][
+            translation_thetas[:, rotation_idx, :] == 1
         ]
-        assert rotation_jacobian_by_translation_coords.abs().sum() < 1e-10
+        assert rotation_jacobian_by_translation_thetas.abs().sum() < 1e-10
         """
         Rotation parameters affect rotation velocities.
         """
-        rotation_coords = 1 - translation_coords
-        rotation_jacobian_by_rotation_coords = jacobian[:, rotation_idx, :][
-            rotation_coords[:, rotation_idx, :] == 1
+        rotation_thetas = 1 - translation_thetas
+        rotation_jacobian_by_rotation_thetas = jacobian[:, rotation_idx, :][
+            rotation_thetas[:, rotation_idx, :] == 1
         ]
-        assert rotation_jacobian_by_rotation_coords.abs().sum() > 0.0
+        assert rotation_jacobian_by_rotation_thetas.abs().sum() > 0.0
         """
         Rotation parameters affect translation velocities
           - When rotation happens, translation can (and often does) take place.
@@ -246,17 +246,17 @@ class TestDifferentiableOpenChainMechanism(unittest.TestCase):
           affect angular velocities but rotation parameters do affect
           translation.
         """
-        translation_jacobian_by_rotation_coords = jacobian[:, translation_idx, :][
-            rotation_coords[:, translation_idx, :] == 1
+        translation_jacobian_by_rotation_thetas = jacobian[:, translation_idx, :][
+            rotation_thetas[:, translation_idx, :] == 1
         ]
-        assert translation_jacobian_by_rotation_coords.abs().sum() > 0.0
+        assert translation_jacobian_by_rotation_thetas.abs().sum() > 0.0
         """
         Translation parameters affect translation velocities
         """
-        translation_jacobian_by_translation_coords = jacobian[:, translation_idx, :][
-            translation_coords[:, translation_idx, :] == 1
+        translation_jacobian_by_translation_thetas = jacobian[:, translation_idx, :][
+            translation_thetas[:, translation_idx, :] == 1
         ]
-        assert translation_jacobian_by_translation_coords.abs().sum() > 0.0
+        assert translation_jacobian_by_translation_thetas.abs().sum() > 0.0
         jacobian_pseudoinverse = torch.linalg.pinv(jacobian)
         velocity_delta = torch.ones([3, 6, 1]) * 0.01
         parameter_delta = torch.bmm(jacobian_pseudoinverse, velocity_delta)
@@ -278,7 +278,7 @@ class TestDifferentiableOpenChainMechanism(unittest.TestCase):
                 [[0.0, 0.0, 1.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 1.0, 0.0, 0.0]],
             ]
         )
-        coords = torch.Tensor([[10.0, np.pi], [math.pi / 2.0, 10.0], [10.0, np.pi]])
+        thetas = torch.Tensor([[10.0, np.pi], [math.pi / 2.0, 10.0], [10.0, np.pi]])
         initial = torch.Tensor(
             [
                 [1, 0, 0, 0],
@@ -290,7 +290,7 @@ class TestDifferentiableOpenChainMechanism(unittest.TestCase):
         open_chain = DifferentiableOpenChainMechanism(
             screws, initial, [(0, 100.0), (0, math.pi * 2)]
         )
-        matrix = open_chain.forward_transformation(coords)
+        matrix = open_chain.forward_transformation(thetas)
         expected_matrix = torch.Tensor(
             [
                 [

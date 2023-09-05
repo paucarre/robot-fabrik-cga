@@ -171,7 +171,7 @@ class IKAgent:
         self.state = AgentState.QLEARNING_TRANING
         '''
         if (
-            training_state.agent_qlearning_training_enabled()
+            training_state.can_train_buffer()
             and self.state == AgentState.JACBOBIAN_TRANING
         ):
             # reset optimizers

@@ -6,7 +6,7 @@ import math
 from linguamechanica.kinematics import DifferentiableOpenChainMechanism
 
 
-def force_parameters_within_bounds(params):
+def force_parameters_within_bounds_to_delete(params):
     bigger_than_pi = params[:, :] > math.pi
     params[bigger_than_pi] = params[bigger_than_pi] - (2.0 * math.pi)
     less_than_minus_pi = params[:, :] < -math.pi
@@ -42,6 +42,10 @@ class Environment:
         self.max_noise_clip = training_state.max_noise_clip
         self.max_action = training_state.max_action
 
+    def to(self, device):
+        self.device = device
+        return self
+
     def uniformly_sample_parameters_within_constraints(self):
         samples = []
         for sample_idx in range(self.batch_size):
@@ -63,13 +67,12 @@ class Environment:
 
     def generate_observation(self):
         state = torch.zeros(self.batch_size, self.state_dimensions)
-        state[:, :6] = self.target_pose.detach().cpu()
-        state[:, 6:] = self.current_parameters.detach().cpu()
+        state[:, :6] = self.target_pose.detach()
+        state[:, 6:] = self.current_thetas.detach()
         return state
 
     def reset(self):
         self.target_parameters = self.uniformly_sample_parameters_within_constraints()
-        force_parameters_within_bounds(self.target_parameters)
         target_transformation = self.open_chain.forward_transformation(
             self.target_parameters
         )
@@ -84,33 +87,22 @@ class Environment:
         max_episode_cumulative_action = self.max_action * self.max_steps_done
         noise = torch.randn_like(self.target_parameters) * max_episode_cumulative_action
         noise = noise.clamp(-max_episode_cumulative_action * 0.5, max_episode_cumulative_action * 0.5)
-        self.current_parameters = (self.target_parameters.detach().clone() + noise).to(self.device)
-        force_parameters_within_bounds(self.current_parameters)
+        self.current_thetas = (self.target_parameters.detach().clone() + noise).to(self.device)
         # self.uniformly_sample_parameters_within_constraints()
-        observation = self.generate_observation()
+        observation = self.generate_observation().to(self.device)
         self.current_step = torch.zeros(self.batch_size, 1).to(self.device)
         return observation
 
     def compute_reward(self):
         error_pose = self.open_chain.compute_error_pose(
-            self.current_parameters, self.target_pose
+            self.current_thetas, self.target_pose
         )
         pose_error = DifferentiableOpenChainMechanism.compute_weighted_error(
             error_pose, self.weights
         )
         # TODO: use a better threshold
         done = pose_error < 1e-3
-        '''
-        if pose_error > 200.0:
-            print("-------------------")
-            print(pose_error)
-            print(self.current_parameters)
-            print(self.target_pose)
-            print(error_pose)
-            print(self.weights)
-        '''
-        print("compute_reward", pose_error.shape, done.shape)
-        return pose_error.unsqueeze(1), done.unsqueeze(1)
+        return -pose_error.unsqueeze(1), done.unsqueeze(1)
 
     def step(self, action):
         not_done = self.current_step < self.max_steps_done
@@ -123,13 +115,18 @@ class Environment:
         instance, the revolute joints will go from (-pi, pi)
         or (0, 2 * pi).
         """
-        self.current_parameters[:, :] += action[:, :]
-        force_parameters_within_bounds(self.current_parameters)
+        #print(action.shape)
+        #TODO: do this niceely
+        theta_deltas_sin = action[:, :, 0]
+        theta_deltas_cos = action[:, :, 1]
+        theta_deltas = torch.atan2(theta_deltas_sin, theta_deltas_cos)
+        self.current_thetas[:, :] += theta_deltas[:, :]
+        #force_parameters_within_bounds(self.current_thetas)
         # self.current_parameter_index = (self.current_parameter_index + 1) % len(
         #    self.open_chain
         # )
-        # print(f"{self.target_parameters} | {self.current_parameters}")
+        # print(f"{self.target_parameters} | {self.current_thetas}")
         reward, done = self.compute_reward()
         observation = self.generate_observation()
         done = torch.logical_or(done, self.current_step >= self.max_steps_done)
-        return observation, reward, done
+        return theta_deltas, observation, reward, done

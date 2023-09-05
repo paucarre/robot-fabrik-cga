@@ -4,10 +4,10 @@ import torch
 
 @dataclass
 class TrainingState:
-    episode_batch_size: int = 1024
+    episode_batch_size: int = 64
     save_freq: int = 1000
-    lr_actor: float = 0.0000001
-    lr_critic: float = 0.001
+    lr_actor: float = 1e-3
+    lr_critic: float = 1e-3
     gamma: float = 0.99
     policy_freq: int = 16
     tau: float = 0.05
@@ -15,8 +15,6 @@ class TrainingState:
     max_timesteps: float = 1e6
     data_generation_without_actor_iterations: int = 20
     qlearning_batch_size: int = 1024  # 32
-    batch_size_jacobian: int = 32
-    jacobian_batch_size = 16
     '''
     The higher the noise, the more the episodes will explore.
     As the episodes will explore more, the Quality Network Q(a, s)
@@ -31,13 +29,6 @@ class TrainingState:
     max_action: int = 0.2
     t: int = 0
     weights = torch.Tensor([1.0, 0.0, 0.0, 0.0, 0.0, 0.0])
-    # NOTE: it should have enough iterations for the replay buffer
-    # to have enough data to train the actor
-    # actor_qlearning_training_starts_at_iteration = 2000
-    jacobian_learning_iterations = 3000  # 20000
-    # Initially actor training is disable only the critic
-    # is trained because the actor only uses the jacobian
-    # actor_training_enabled: bool = False
     max_steps_done: int = 20
     max_episodes_in_buffer:int = 50
 
@@ -47,31 +38,21 @@ class TrainingState:
     def can_train_buffer(self):
         return self.t >= self.data_generation_without_actor_iterations
 
-    def agent_qlearning_training_enabled(self):
-        return (
-            self.t
-            >= self.data_generation_without_actor_iterations
-            + self.jacobian_learning_iterations
-        )
-
     def use_actor_for_data_generation(self):
         return self.t >= self.data_generation_without_actor_iterations
 
     def can_save(self):
         return (
             self.t + 1
-        ) % self.save_freq == 0 and self.agent_qlearning_training_enabled()
+        ) % self.save_freq == 0 and self.can_train_buffer()
 
     def can_eval_policy(self):
         return (
             self.t + 1
-        ) % self.eval_freq == 0 and self.agent_qlearning_training_enabled()
+        ) % self.eval_freq == 0 and self.can_train_buffer()
 
     def batch_size(self):
-        if self.agent_qlearning_training_enabled():
-            return self.qlearning_batch_size
-        else:
-            return self.jacobian_batch_size
+        return self.qlearning_batch_size
 
 
 @dataclass

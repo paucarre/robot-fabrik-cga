@@ -45,16 +45,16 @@ def to_left_multiplied(right_multiplied):
 
 
 class KinematicsNetwork(nn.Module):
-    def __init__(self, initial_coords, chain, error_weights, lr=0.001):
+    def __init__(self, initial_thetas, chain, error_weights, lr=0.001):
         super(KinematicsNetwork, self).__init__()
         self.chain = chain
-        self.coords = nn.Parameter(initial_coords.detach().clone())
+        self.thetas = nn.Parameter(initial_thetas.detach().clone())
         self.error_weights = error_weights
         self.optimizer = optim.Adam(self.parameters(), lr=lr)
         self.loss = None
 
     def forward(self, target_pose):
-        error_pose = self.chain.compute_error_pose(self.coords, target_pose)
+        error_pose = self.chain.compute_error_pose(self.thetas, target_pose)
         error = DifferentiableOpenChainMechanism.compute_weighted_error(
             error_pose, self.error_weights
         )
@@ -72,18 +72,35 @@ class DifferentiableOpenChainMechanism:
         self.screws = screws
         self.initial_matrix = to_left_multiplied(initial_matrix)
         self.joint_limits = joint_limits
-        self.device = screws.device
+        self.device = "cuda:0"
+        self.screws = self.screws.to(self.device)
         self.initial_matrix = self.initial_matrix.to(self.screws.device)
 
     def to(self, device):
+        # TODO: this is broken, fix it
+        device = "cuda:0"
         self.screws = self.screws.to(device)
         self.initial_matrix = self.initial_matrix.to(device)
+        self.device = device
         return self
 
-    def _jacobian_computation_forward(self, coords):
-        transformation = self.forward_transformation(coords)
+    def _jacobian_computation_forward(self, thetas):
+        transformation = self.forward_transformation(thetas)
         twist = transforms.se3_log_map(transformation.get_matrix())
         return twist
+    
+    def compute_pose_and_error_pose(self, thetas, target_pose):
+        #print(self.device, thetas.device, target_pose.device)
+        #print("compute_error_pose", thetas.shape, target_pose.shape)
+        current_transformation = self.forward_transformation(thetas)
+        target_transformation = transforms.se3_exp_map(target_pose)
+        current_trans_to_target = current_transformation.compose(
+            transforms.Transform3d(matrix=target_transformation).inverse()
+        )
+        current_trans_to_target = current_trans_to_target.to(thetas.device).get_matrix()
+        error_pose = transforms.se3_log_map(current_trans_to_target)
+        pose = transforms.se3_log_map(current_transformation.get_matrix())        
+        return pose, error_pose
 
     def compute_error_pose(self, thetas, target_pose):
         #print("compute_error_pose", thetas.shape, target_pose.shape)
@@ -107,33 +124,33 @@ class DifferentiableOpenChainMechanism:
 
     def inverse_kinematics(
         self,
-        initial_coords,
+        initial_thetas,
         target_pose,
         min_error,
         error_weights,
         parameter_update_rate,
         max_steps=1000,
     ):
-        current_coords = initial_coords.detach().clone()
-        error_pose = self.compute_error_pose(current_coords, target_pose)
+        current_thetas = initial_thetas.detach().clone()
+        error_pose = self.compute_error_pose(current_thetas, target_pose)
         error = DifferentiableOpenChainMechanism.compute_weighted_error(
             error_pose, error_weights
         )
         parameter_update_rate = parameter_update_rate.unsqueeze(0)
         current_step = 0
         while error >= min_error and current_step < max_steps:
-            parameter_delta = self.inverse_kinematics_step(current_coords, error_pose)
-            current_coords -= parameter_delta * parameter_update_rate
-            error_pose = self.compute_error_pose(current_coords, target_pose)
+            parameter_delta = self.inverse_kinematics_step(current_thetas, error_pose)
+            current_thetas -= parameter_delta * parameter_update_rate
+            error_pose = self.compute_error_pose(current_thetas, target_pose)
             error = DifferentiableOpenChainMechanism.compute_weighted_error(
                 error_pose, error_weights
             )
             current_step += 1
-        return current_coords
+        return current_thetas
 
     def inverse_kinematics_backprop(
         self,
-        initial_coords,
+        initial_thetas,
         target_pose,
         min_error,
         error_weights,
@@ -141,7 +158,7 @@ class DifferentiableOpenChainMechanism:
         max_steps=1000,
     ):
         kinematics_network = KinematicsNetwork(
-            initial_coords, self, error_weights, lr=lr
+            initial_thetas, self, error_weights, lr=lr
         )
         current_step = 0
         while (
@@ -149,7 +166,7 @@ class DifferentiableOpenChainMechanism:
         ) and current_step < max_steps:
             kinematics_network.train_step(target_pose=target_pose)
             current_step += 1
-        return kinematics_network.coords
+        return kinematics_network.thetas
 
     def jacobian(self, coordinates):
         """
@@ -166,9 +183,9 @@ class DifferentiableOpenChainMechanism:
         )
         """
         Dimensions:
-            [batch, screw_coordinates, batch, coords]
+            [batch, screw_coordinates, batch, thetas]
         Need to be reduced to:
-            [batch, screw_coordinates, coords]
+            [batch, screw_coordinates, thetas]
         By using `take_along_dim`
         Conceptually this means that coordinates that are
         used in a kinematic chain are not used for other

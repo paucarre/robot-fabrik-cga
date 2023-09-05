@@ -11,8 +11,8 @@ from linguamechanica.training_context import EpisodeState, TrainingState
 def eval_policy(agent, training_state, eval_episodes=10):
     urdf_robot = UrdfRobotLibrary.dobot_cr5()
     open_chain = urdf_robot.extract_open_chains(0.3)[-1]
-    eval_env = Environment( open_chain, training_state)
-
+    batch_size = 32
+    eval_env = Environment(batch_size,  open_chain, training_state)
     avg_acc_reward = 0.0
     initial_rewards = torch.zeros(eval_episodes)
     final_rewards = torch.zeros(eval_episodes)
@@ -24,12 +24,12 @@ def eval_policy(agent, training_state, eval_episodes=10):
             _, log_prob, mu, _ = agent.choose_action(state, training_state)
             # During evaluation use mu instead of action as action has noise
             # and during infernence it should not explore
-            state, reward, done = eval_env.step(mu)
-            if eval_reward is None:
-                initial_rewards[idx] = reward
-                eval_reward = reward
-            else:
-                eval_reward += reward
+            action, state, reward, done = eval_env.step(mu)
+            #if eval_reward is None:
+            #    #initial_rewards[idx] = reward
+            #    #eval_reward = reward
+            #else:
+            #    eval_reward += reward
         final_rewards[idx] = reward
         avg_acc_reward += eval_reward
     avg_acc_reward /= eval_episodes
@@ -61,11 +61,13 @@ def summary_done(summary, training_state, episode):
 def train():
     summary = SummaryWriter()
     urdf_robot = UrdfRobotLibrary.dobot_cr5()
-    open_chain = urdf_robot.extract_open_chains(0.3)[-1]
+    #TODO: do it well!
+    a = torch.zeros(1).cuda()
+    open_chain = urdf_robot.extract_open_chains(0.3)[-1].to(a.device)
     # TODO: place all these constants as arguments
 
     training_state = TrainingState()
-    env = Environment(training_state.episode_batch_size, open_chain, training_state)
+    env = Environment(training_state.episode_batch_size, open_chain, training_state).to(a.device)
     agent = IKAgent(
         open_chain=open_chain,
         summary=summary,
@@ -110,13 +112,10 @@ def train():
             noise.std(),
             training_state.t,
         )
-        # else:
-        # action = env.sample_noisy_jacobian_action()
-        # action = env.sample_random_action()
 
         # Perform action
-        next_state, reward, done = env.step(action)
-        print("WTF", reward.shape, done.shape)
+        action, next_state, reward, done = env.step(action)
+        #print("WTF", next_state.shape, reward.shape, done.shape)
         summary.add_scalar("Step Batch Reward", reward.mean(), training_state.t)
         episode.step(reward)
         agent.store_transition(
@@ -132,13 +131,13 @@ def train():
 
         if training_state.can_train_buffer():
             agent.train_buffer(training_state)
-        if training_state.can_eval_policy():
-            avg_acc_reward, initial_rewards, final_rewards = eval_policy(
-                agent, training_state, 2
-            )
-            summary_evaluatation(
-                summary, initial_rewards, final_rewards, avg_acc_reward, training_state
-            )
+        #if training_state.can_eval_policy():
+        #    avg_acc_reward, initial_rewards, final_rewards = eval_policy(
+        #        agent, training_state, 2
+        #    )
+        #    summary_evaluatation(
+        #        summary, initial_rewards, final_rewards, avg_acc_reward, training_state
+        #    )
 
         if training_state.can_save():
             agent.save(training_state)

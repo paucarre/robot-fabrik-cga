@@ -64,7 +64,7 @@ class Environment:
     def generate_observation(self):
         state = torch.zeros(self.batch_size, self.state_dimensions)
         state[:, :6] = self.target_pose.detach().cpu()
-        state[:, 6:] = self.current_parameters.detach().cpu()
+        state[:, 6:] = self.current_thetas.detach().cpu()
         return state
 
     def reset(self):
@@ -84,8 +84,8 @@ class Environment:
         max_episode_cumulative_action = self.max_action * self.max_steps_done
         noise = torch.randn_like(self.target_parameters) * max_episode_cumulative_action
         noise = noise.clamp(-max_episode_cumulative_action * 0.5, max_episode_cumulative_action * 0.5)
-        self.current_parameters = (self.target_parameters.detach().clone() + noise).to(self.device)
-        force_parameters_within_bounds(self.current_parameters)
+        self.current_thetas = (self.target_parameters.detach().clone() + noise).to(self.device)
+        force_parameters_within_bounds(self.current_thetas)
         # self.uniformly_sample_parameters_within_constraints()
         observation = self.generate_observation()
         self.current_step = torch.zeros(self.batch_size, 1).to(self.device)
@@ -93,7 +93,7 @@ class Environment:
 
     def compute_reward(self):
         error_pose = self.open_chain.compute_error_pose(
-            self.current_parameters, self.target_pose
+            self.current_thetas, self.target_pose
         )
         pose_error = DifferentiableOpenChainMechanism.compute_weighted_error(
             error_pose, self.weights
@@ -104,7 +104,7 @@ class Environment:
         if pose_error > 200.0:
             print("-------------------")
             print(pose_error)
-            print(self.current_parameters)
+            print(self.current_thetas)
             print(self.target_pose)
             print(error_pose)
             print(self.weights)
@@ -123,12 +123,12 @@ class Environment:
         instance, the revolute joints will go from (-pi, pi)
         or (0, 2 * pi).
         """
-        self.current_parameters[:, :] += action[:, :]
-        force_parameters_within_bounds(self.current_parameters)
+        self.current_thetas[:, :] += action[:, :]
+        force_parameters_within_bounds(self.current_thetas)
         # self.current_parameter_index = (self.current_parameter_index + 1) % len(
         #    self.open_chain
         # )
-        # print(f"{self.target_parameters} | {self.current_parameters}")
+        # print(f"{self.target_parameters} | {self.current_thetas}")
         reward, done = self.compute_reward()
         observation = self.generate_observation()
         done = torch.logical_or(done, self.current_step >= self.max_steps_done)
